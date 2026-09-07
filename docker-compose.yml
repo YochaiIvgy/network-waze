@@ -1,0 +1,11 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: waze
+      POSTGRES_PASSWORD: waze
+      POSTGRES_DB: network_waze
+    ports: ["5433:5432"]
+    volumes: ["waze_pg:/var/lib/postgresql/data"]
+volumes:
+  waze_pg:

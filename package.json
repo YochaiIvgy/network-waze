@@ -1,0 +1,36 @@
+{
+  "name": "network-waze",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Relationship graph built from meeting transcripts. Extract people, orgs and the intelligence on the edges between them; find warm paths to anyone.",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "typecheck": "tsc --noEmit",
+    "db:push": "tsx scripts/db-push.ts",
+    "db:reset": "tsx scripts/db-push.ts --reset",
+    "db:seed": "tsx scripts/seed.ts",
+    "ingest": "tsx scripts/ingest.ts",
+    "reproject": "tsx scripts/reproject.ts",
+    "verify": "tsx scripts/verify.ts"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.124.0",
+    "@electric-sql/pglite": "^0.5.8",
+    "next": "^15.5.0",
+    "pg": "^8.13.1",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/pg": "^8.11.10",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "dotenv": "^16.4.7",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}
