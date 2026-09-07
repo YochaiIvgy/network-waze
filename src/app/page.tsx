@@ -40,7 +40,7 @@ interface RankedPath {
 interface Connector {
   id: string; name: string; unlocks: number; score: number; targets: string[];
 }
-interface RemoteMeeting { id: string; title: string; date?: string }
+interface RemoteMeeting { id: string; title: string; date?: string; transcript?: string | null; error?: string }
 
 interface SearchAnswer {
   query: string;
@@ -149,17 +149,19 @@ export default function Home() {
     try {
       const d = await action("/api/granola", { action: "list" });
       setRemote(d.meetings);
+      await load();
     } catch (e) {
       setListError((e as Error).message);
     } finally {
       setListing(false);
     }
-  }, []);
+  }, [load]);
 
   useEffect(() => {
+    if (loading) return;
     if (connected) void refreshMeetings();
     else setRemote([]);
-  }, [connected, refreshMeetings]);
+  }, [connected, refreshMeetings, loading]);
 
   // Path search runs on the server: it is Dijkstra over the whole graph, and the
   // token guard keeps a slow request from overwriting a newer selection.
@@ -895,14 +897,14 @@ export default function Home() {
                 <div>
                   <h2>Conversation library</h2>
                   <p className="muted">
-                    Granola supplies the transcript. Extraction runs on our own model with a strict schema, so
-                    every claim arrives with a verbatim quote.
+                    Transcripts are fetched once from Granola and stored here. Read any meeting before you extract —
+                    extraction runs on our own model with a strict schema, so every claim arrives with a verbatim quote.
                   </p>
                 </div>
                 {connected ? (
                   <Button variant="outline" disabled={listing} onClick={() => void refreshMeetings()}>
                     <AudioLines size={16} />
-                    {listing ? "Loading meetings…" : "Refresh Granola"}
+                    {listing ? "Loading from Granola…" : "Refresh Granola"}
                   </Button>
                 ) : (
                   <a className="connect-link" href="/api/granola/connect">
@@ -915,7 +917,7 @@ export default function Home() {
               <div className="meeting-stages">
                 <span>{remote.length} available from Granola</span>
                 <ArrowRight size={14} />
-                <span>{g.stats.meetings} ingested</span>
+                <span>{g.meetings.filter((m) => m.status === "extracted").length} extracted</span>
                 <ArrowRight size={14} />
                 <span>{g.stats.claims.toLocaleString()} claims in the ledger</span>
               </div>
@@ -935,7 +937,10 @@ export default function Home() {
               )}
 
               {remote.map((m) => {
-                const saved = stored.get(m.id);
+                const local = stored.get(m.id);
+                const extracted = local?.status === "extracted";
+                const text = m.transcript || local?.transcript;
+                const error = meetingErrors[m.id] || m.error;
                 return (
                   <article className="library-meeting" key={m.id}>
                     <div className="library-row">
@@ -949,11 +954,13 @@ export default function Home() {
                       <span className="meeting-status">
                         {extracting === m.id
                           ? "Extracting…"
-                          : saved
-                            ? `In your network · ${saved.claimCount} claims`
-                            : "Ready to extract"}
+                          : extracted
+                            ? `In your network · ${local?.claimCount ?? 0} claims`
+                            : text
+                              ? "Transcript saved"
+                              : "Ready to extract"}
                       </span>
-                      {!saved && (
+                      {!extracted && (
                         <Button disabled={!!extracting || busy || !canExtract} onClick={() => void extractMeeting(m)}>
                           <Sparkles size={15} />
                           {extracting === m.id ? "Extracting…" : "Extract connections"}
@@ -965,22 +972,41 @@ export default function Home() {
                         Reading the whole transcript in one pass. This takes a minute on a long meeting.
                       </p>
                     )}
-                    {meetingErrors[m.id] && (
+                    {error && (
                       <p role="alert" className="notice">
-                        {meetingErrors[m.id]}
+                        {error}
                       </p>
                     )}
+                    <details className="meeting">
+                      <summary>
+                        <span>View transcript</span>
+                        <ChevronDown size={16} />
+                      </summary>
+                      <div className="meeting-body">
+                        {text ? (
+                          <p>{text}</p>
+                        ) : (
+                          <p className="muted">
+                            {listing
+                              ? "Fetching transcript from Granola…"
+                              : "No transcript stored for this meeting."}
+                          </p>
+                        )}
+                      </div>
+                    </details>
                   </article>
                 );
               })}
 
-              {g.meetings.length > 0 && (
+              {g.meetings.some((m) => m.status === "extracted" || !m.externalId) && (
                 <>
                   <div className="section-label" style={{ marginTop: 26 }}>
                     <Check size={14} />
                     IN YOUR NETWORK
                   </div>
-                  {g.meetings.map((m) => (
+                  {g.meetings
+                    .filter((m) => m.status === "extracted" || !m.externalId)
+                    .map((m) => (
                     <article className="library-meeting" key={m.id}>
                       <div className="library-row">
                         <span className="meeting-icon">

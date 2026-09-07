@@ -229,6 +229,15 @@ export function hash(s: string): string {
   return createHash("sha256").update(s).digest("hex");
 }
 
+/** Prefer the raw Granola transcript over the tagged L0 body used for extraction. */
+export function displayTranscript(raw: unknown, fallback: string): string {
+  if (raw && typeof raw === "object" && !Array.isArray(raw)) {
+    const transcript = (raw as Record<string, unknown>).transcript;
+    if (typeof transcript === "string" && transcript.trim()) return transcript;
+  }
+  return fallback;
+}
+
 /** Rough, and only used for display and cost estimates. */
 export function estimateTokens(s: string): number {
   return Math.ceil(s.length / 3.8);

@@ -17,37 +17,34 @@ export interface IngestResult {
   usage?: Record<string, number>;
 }
 
+export interface StoredSource {
+  id: string;
+  externalId: string | null;
+  body: string;
+  raw: unknown;
+}
+
+const EMPTY_COUNTS = { people: 0, organizations: 0, relationships: 0, claims: 0 };
+
 /**
- * The full L0 -> L3 path for one meeting.
- *
- * Each stage commits independently on purpose: a successful extraction is worth
- * keeping even if projection later fails, because projection is re-runnable and
- * extraction costs money.
+ * Persist the raw transcript (L0) without running extraction. Listing Granola
+ * meetings stores them here once; extract is a later, paid step against this row.
  */
-export async function ingestSource(
+export async function storeSource(
   workspaceId: string,
   doc: NormalizedSource,
-): Promise<IngestResult> {
-  const existing = await one<{ id: string }>(
-    `SELECT id FROM sources WHERE workspace_id = $1 AND content_hash = $2`,
-    [workspaceId, doc.contentHash],
-  );
-  if (existing) {
-    return {
-      sourceId: existing.id,
-      runId: null,
-      alreadyIngested: true,
-      counts: { people: 0, organizations: 0, relationships: 0, claims: 0 },
-      entitiesCreated: 0,
-      entitiesMatched: 0,
-      reviewsQueued: 0,
-    };
-  }
+): Promise<{ sourceId: string; created: boolean }> {
+  const existing = await findSource(workspaceId, {
+    externalId: doc.externalId,
+    contentHash: doc.contentHash,
+  });
+  if (existing) return { sourceId: existing.id, created: false };
 
   const source = await one<{ id: string }>(
     `INSERT INTO sources (workspace_id, kind, external_id, title, occurred_at, body, raw,
                           content_hash, attendee_hints, token_estimate)
      VALUES ($1, 'granola_meeting', $2, $3, $4, $5, $6, $7, $8, $9)
+     ON CONFLICT (workspace_id, content_hash) DO NOTHING
      RETURNING id`,
     [
       workspaceId,
@@ -61,17 +58,113 @@ export async function ingestSource(
       doc.tokenEstimate,
     ],
   );
-  if (!source) throw new Error("Failed to insert source");
+  if (source) return { sourceId: source.id, created: true };
 
+  const raced = await one<{ id: string }>(
+    `SELECT id FROM sources WHERE workspace_id = $1 AND content_hash = $2`,
+    [workspaceId, doc.contentHash],
+  );
+  if (!raced) throw new Error("Failed to insert source");
+  return { sourceId: raced.id, created: false };
+}
+
+export async function sourcesByExternalIds(
+  workspaceId: string,
+  ids: string[],
+): Promise<Map<string, StoredSource>> {
+  const found = new Map<string, StoredSource>();
+  if (ids.length === 0) return found;
+  const rows = await query<{ id: string; external_id: string; body: string; raw: unknown }>(
+    `SELECT id, external_id, body, raw FROM sources
+      WHERE workspace_id = $1 AND external_id = ANY($2)`,
+    [workspaceId, ids],
+  );
+  for (const row of rows) {
+    if (!found.has(row.external_id)) {
+      found.set(row.external_id, {
+        id: row.id,
+        externalId: row.external_id,
+        body: row.body,
+        raw: row.raw,
+      });
+    }
+  }
+  return found;
+}
+
+async function findSource(
+  workspaceId: string,
+  keys: { externalId: string | null; contentHash: string },
+): Promise<{ id: string } | null> {
+  if (keys.externalId) {
+    const byExternal = await one<{ id: string }>(
+      `SELECT id FROM sources WHERE workspace_id = $1 AND external_id = $2`,
+      [workspaceId, keys.externalId],
+    );
+    if (byExternal) return byExternal;
+  }
+  return one<{ id: string }>(
+    `SELECT id FROM sources WHERE workspace_id = $1 AND content_hash = $2`,
+    [workspaceId, keys.contentHash],
+  );
+}
+
+async function hasSucceededExtraction(sourceId: string): Promise<boolean> {
+  const row = await one<{ id: string }>(
+    `SELECT id FROM extraction_runs WHERE source_id = $1 AND status = 'succeeded' LIMIT 1`,
+    [sourceId],
+  );
+  return Boolean(row);
+}
+
+/**
+ * The full L0 -> L3 path for one meeting.
+ *
+ * Each stage commits independently on purpose: a successful extraction is worth
+ * keeping even if projection later fails, because projection is re-runnable and
+ * extraction costs money. A source that was stored for reading but not yet
+ * extracted is not treated as done — only a succeeded run is.
+ */
+export async function ingestSource(
+  workspaceId: string,
+  doc: NormalizedSource,
+): Promise<IngestResult> {
+  const { sourceId } = await storeSource(workspaceId, doc);
+  return extractStoredSource(workspaceId, sourceId);
+}
+
+export async function extractStoredSource(
+  workspaceId: string,
+  sourceId: string,
+): Promise<IngestResult> {
+  if (await hasSucceededExtraction(sourceId)) {
+    return {
+      sourceId,
+      runId: null,
+      alreadyIngested: true,
+      counts: EMPTY_COUNTS,
+      entitiesCreated: 0,
+      entitiesMatched: 0,
+      reviewsQueued: 0,
+    };
+  }
+
+  const source = await one<{ title: string; occurred_at: string | null; body: string }>(
+    `SELECT title, occurred_at, body FROM sources WHERE id = $1 AND workspace_id = $2`,
+    [sourceId, workspaceId],
+  );
+  if (!source) throw new Error("That meeting is no longer in this workspace.");
+
+  const occurredAt = source.occurred_at ? String(source.occurred_at) : null;
   const result = await extractFromSource({
-    title: doc.title,
-    occurredAt: doc.occurredAt,
-    body: doc.body,
+    title: source.title,
+    occurredAt,
+    body: source.body,
   });
 
   const { runId, counts } = await persistExtraction(
-    source.id,
-    doc,
+    sourceId,
+    { occurredAt },
     result.extraction,
     result.extractorVersion,
     result.promptHash,
@@ -82,7 +175,7 @@ export async function ingestSource(
   await projectGraph(workspaceId);
 
   return {
-    sourceId: source.id,
+    sourceId,
     runId,
     alreadyIngested: false,
     counts,

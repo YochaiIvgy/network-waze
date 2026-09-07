@@ -1,5 +1,6 @@
 import { getWorkspace, query } from "./db";
 import { traversalProbability } from "./graph/scoring";
+import { displayTranscript } from "./ingest/granola";
 import { RELATIONSHIP_META, type EntityAttributes, type OutreachHook, type RelationshipType } from "./types";
 
 /**
@@ -199,10 +200,11 @@ export async function getViewGraph(): Promise<ViewGraph> {
       kind: string;
       external_id: string | null;
       body: string;
+      raw: unknown;
       entity_count: number;
       claim_count: number;
     }>(
-      `SELECT s.id, s.title, s.occurred_at, s.kind, s.external_id, s.body,
+      `SELECT s.id, s.title, s.occurred_at, s.kind, s.external_id, s.body, s.raw,
               (SELECT count(DISTINCT ml.entity_id)::int FROM mentions m
                  JOIN mention_links ml ON ml.mention_id = m.id
                 WHERE m.source_id = s.id) AS entity_count,
@@ -337,7 +339,7 @@ export async function getViewGraph(): Promise<ViewGraph> {
     date: row.occurred_at,
     source: row.kind === "granola_meeting" ? "Granola" : "Transcript import",
     externalId: row.external_id,
-    transcript: row.body,
+    transcript: displayTranscript(row.raw, row.body),
     status: row.claim_count > 0 ? "extracted" : "pending",
     entityCount: row.entity_count,
     claimCount: row.claim_count,
