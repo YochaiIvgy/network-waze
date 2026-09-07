@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getWorkspace } from "@/lib/db";
-import { hasAnthropicKey } from "@/lib/anthropic";
+import { hasAIKey } from "@/lib/anthropic";
 import { disconnect, mcp, readSession, toolArgs, type McpClient } from "@/lib/granola/client";
 import { parseMeetingResult, parseTranscriptResult, responseShape } from "@/lib/granola/response";
 import { displayTranscript, normalizeGranola } from "@/lib/ingest/granola";
@@ -107,9 +107,9 @@ export async function POST(request: Request) {
     }
 
     if (action === "extract") {
-      if (!hasAnthropicKey()) {
+      if (!hasAIKey()) {
         throw new Error(
-          "ANTHROPIC_API_KEY is not set. Extraction needs it; browsing the graph does not.",
+          "Add an API key in Settings to enable extraction.",
         );
       }
       if (typeof meetingId !== "string" || !meetingId || meetingId.length > 200) {

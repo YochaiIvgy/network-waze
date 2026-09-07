@@ -1,15 +1,14 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import type { z } from "zod/v4";
-import { env, requireAnthropic } from "./env";
-
-let client: Anthropic | null = null;
+import { aiConfig } from "./ai-settings";
+import { callOtherProvider } from "./ai-completion";
 
 export function anthropic(): Anthropic {
-  if (!client) client = new Anthropic({ apiKey: requireAnthropic() });
-  return client;
+  const { apiKey } = aiConfig();
+  if (!apiKey) throw new Error("Add an API key in Settings to use AI features.");
+  return new Anthropic({ apiKey });
 }
-
 export interface StructuredCallOptions<T extends z.ZodType> {
   system: string;
   user: string;
@@ -37,16 +36,20 @@ export interface StructuredResult<T> {
 export async function callStructured<T extends z.ZodType>(
   opts: StructuredCallOptions<T>,
 ): Promise<StructuredResult<z.infer<T>>> {
+  if (aiConfig().provider !== "anthropic") {
+    const result = await callOtherProvider(opts, zodOutputFormat(opts.schema).schema);
+    return { data: opts.schema.parse(JSON.parse(result.text)) as z.infer<T>, usage: result.usage };
+  }
   const response = await anthropic().messages.parse({
-    model: env.model,
+    model: aiConfig().model,
     max_tokens: opts.maxTokens ?? 16000,
-    thinking: { type: "adaptive" },
+
     system: opts.cacheSystem === false
       ? opts.system
       : [{ type: "text", text: opts.system, cache_control: { type: "ephemeral", ttl: "1h" } }],
     messages: [{ role: "user", content: opts.user }],
     output_config: {
-      effort: opts.effort ?? "high",
+
       format: zodOutputFormat(opts.schema),
     },
   });
@@ -80,15 +83,16 @@ export async function callText(opts: {
   effort?: "low" | "medium" | "high";
   cacheSystem?: boolean;
 }): Promise<string> {
+  if (aiConfig().provider !== "anthropic") return (await callOtherProvider(opts)).text;
   const response = await anthropic().messages.create({
-    model: env.model,
+    model: aiConfig().model,
     max_tokens: opts.maxTokens ?? 4000,
-    thinking: { type: "adaptive" },
+
     system: opts.cacheSystem === false
       ? opts.system
       : [{ type: "text", text: opts.system, cache_control: { type: "ephemeral", ttl: "1h" } }],
     messages: [{ role: "user", content: opts.user }],
-    output_config: { effort: opts.effort ?? "medium" },
+
   });
 
   if (response.stop_reason === "refusal") {
@@ -101,6 +105,6 @@ export async function callText(opts: {
     .trim();
 }
 
-export function hasAnthropicKey(): boolean {
-  return Boolean(env.anthropicApiKey);
+export function hasAIKey(): boolean {
+  return Boolean(aiConfig().apiKey);
 }

@@ -1,6 +1,6 @@
 import { z } from "zod/v4";
 import { callStructured } from "../anthropic";
-import { hasAnthropicKey } from "../anthropic";
+import { hasAIKey } from "../anthropic";
 import { ENTITY_TYPES } from "../types";
 
 /**
@@ -83,7 +83,7 @@ export function heuristicPlan(queryText: string): QueryPlan {
 }
 
 export async function planQuery(queryText: string): Promise<{ plan: QueryPlan; planner: "llm" | "heuristic" }> {
-  if (!hasAnthropicKey()) return { plan: heuristicPlan(queryText), planner: "heuristic" };
+  if (!hasAIKey()) return { plan: heuristicPlan(queryText), planner: "heuristic" };
   try {
     const { data } = await callStructured({
       system: PLANNER_SYSTEM,

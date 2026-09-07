@@ -12,12 +12,14 @@
  */
 export async function register() {
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
+  if (process.env.NEXT_PHASE === "phase-production-build") return;
   try {
     const { getPool } = await import("./lib/db");
     const pool = await getPool();
     // PGlite defers part of its start-up until a statement actually runs.
     await pool.query("SELECT 1");
-  } catch {
+  } catch (error) {
+    console.error("Database startup failed:", error);
     // An unconfigured or unreachable database is a normal first-run state — the
     // pages render a setup screen for it rather than the server failing to boot.
   }

@@ -6,3 +6,7 @@ node_modules
 next-env.d.ts
 .waze-data
 certs
+
+.waze-settings
+.waze-backups
+.waze-data.lock

@@ -1,3 +1,4 @@
+import { aiConfig } from "../ai-settings";
 import { one, query, transaction, type ClientLike } from "../db";
 import { extractFromSource } from "../extraction/extract";
 import type { Extraction } from "../extraction/schema";
@@ -207,7 +208,7 @@ export async function persistExtraction(
       [
         sourceId,
         extractorVersion,
-        process.env.WAZE_MODEL ?? "claude-opus-5",
+        aiConfig().model,
         promptHash,
         JSON.stringify(usage),
         JSON.stringify(extraction),

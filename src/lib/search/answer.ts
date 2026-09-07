@@ -1,4 +1,4 @@
-import { hasAnthropicKey, callText } from "../anthropic";
+import { hasAIKey, callText } from "../anthropic";
 import { query } from "../db";
 import { embedOne } from "../embeddings";
 import { loadGraph, type GraphNode } from "../graph/graph-cache";
@@ -114,7 +114,7 @@ export async function searchNetwork(
   const serialized = ranked.slice(0, 8).map((p) => serializePath(p, relevanceById.get(p.targetId) ?? 0));
   const connectors = rankConnectors(ranked).slice(0, 5);
 
-  const answer = hasAnthropicKey()
+  const answer = hasAIKey()
     ? await composeAnswer(queryText, plan, scored, ranked, graph.nodes)
     : null;
 

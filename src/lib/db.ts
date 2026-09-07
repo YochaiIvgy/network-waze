@@ -81,8 +81,39 @@ async function createPool(): Promise<PoolLike> {
  * "memory://" for a throwaway instance (that is what the verify harness uses).
  */
 export async function createEmbeddedPool(dataDir = env.embeddedDataDir): Promise<PoolLike> {
+  // A build must never open the live database alongside the dev server.
+  if (process.env.NEXT_PHASE === "phase-production-build") {
+    throw new Error("The embedded database is unavailable during a production build.");
+  }
   const { PGlite } = await import("@electric-sql/pglite");
-  const db = await PGlite.create({ dataDir });
+  let releaseLock: (() => Promise<void>) | undefined;
+  if (dataDir !== "memory://") {
+    const fsSpecifier = "node:fs/promises";
+    const pathSpecifier = "node:path";
+    const { mkdir } = await import(/* webpackIgnore: true */ /* turbopackIgnore: true */ fsSpecifier) as typeof import("node:fs/promises");
+    const { resolve } = await import(/* webpackIgnore: true */ /* turbopackIgnore: true */ pathSpecifier) as typeof import("node:path");
+    // Keep this Node-only dependency out of Next's edge instrumentation bundle.
+    const lockSpecifier = "proper-lockfile";
+    const { default: lockfile } = await import(/* webpackIgnore: true */ /* turbopackIgnore: true */ lockSpecifier) as { default: typeof import("proper-lockfile") };
+    dataDir = resolve(dataDir.replace(/^file:\/\//, ""));
+    await mkdir(dataDir, { recursive: true });
+    try {
+      releaseLock = await lockfile.lock(dataDir, { stale: 60_000, update: 10_000 });
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ELOCKED") throw error;
+      throw new Error("The local database is already open in another app process. Stop the other dev server or database command, then retry. After a forced shutdown, allow one minute for its lock to expire.");
+    }
+  }
+  let db: import("@electric-sql/pglite").PGlite;
+  try {
+    db = await PGlite.create({ dataDir });
+  } catch (error) {
+    await releaseLock?.();
+    if (error instanceof Error && error.message.includes("Aborted(")) {
+      throw new Error("The local database could not start. Its database files may need recovery. Stop the app and back up the data directory before repairing it; do not reset the database.", { cause: error });
+    }
+    throw error;
+  }
 
   const run = async <T extends QueryResultRow>(text: string, params?: unknown[]) => {
     // Multi-statement strings (the schema file) must go through `exec`.
@@ -99,7 +130,10 @@ export async function createEmbeddedPool(dataDir = env.embeddedDataDir): Promise
   return {
     query: run,
     connect: async () => client,
-    end: async () => db.close(),
+    end: async () => {
+      await db.close();
+      await releaseLock?.();
+    },
   };
 }
 
@@ -109,6 +143,10 @@ export async function getPool(): Promise<PoolLike> {
     globalThis.__wazePoolPromise = createPool().then((p) => {
       globalThis.__wazePool = p;
       return p;
+    }).catch((error) => {
+      // A transient startup failure must not poison every subsequent request.
+      globalThis.__wazePoolPromise = undefined;
+      throw error;
     });
   }
   return globalThis.__wazePoolPromise;

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getViewGraph } from "@/lib/view-model";
 import { readSession } from "@/lib/granola/client";
-import { hasAnthropicKey } from "@/lib/anthropic";
+import { hasAIKey } from "@/lib/anthropic";
 import { isEmbedded } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
@@ -14,7 +14,7 @@ export async function GET(request: Request) {
       {
         graph,
         connected: Boolean(session?.accessToken),
-        canExtract: hasAnthropicKey(),
+        canExtract: hasAIKey(),
         embedded: isEmbedded(),
       },
       { headers: { "Cache-Control": "no-store" } },

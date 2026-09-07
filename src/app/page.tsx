@@ -6,6 +6,7 @@ import {
   ChevronDown, Sun, Moon, SlidersHorizontal, X, Sparkles, Check, Link2, Settings2,
   GitMerge, CircleHelp, Gauge, Quote as QuoteIcon,
 } from "lucide-react";
+import { AISettings } from "@/components/AISettings";
 import { NetworkSearch } from "@/components/NetworkSearch";
 import { NetworkCanvas } from "@/components/NetworkCanvas";
 import { Button } from "@/components/ui/button";
@@ -21,6 +22,7 @@ const NAV = {
   "Ask your network": Sparkles,
   Meetings: AudioLines,
   "Entity review": GitMerge,
+  Settings: Settings2,
 } as const;
 
 type ViewName = keyof typeof NAV;
@@ -309,7 +311,7 @@ export default function Home() {
               <ArrowUpRight size={15} />
             </button>
           </div>
-          <button className="nav-item" onClick={() => setModal("settings")}>
+          <button className="nav-item" onClick={() => nav("Settings")}>
             <Settings2 size={18} />
             Settings &amp; integrations
           </button>
@@ -344,7 +346,8 @@ export default function Home() {
         </header>
 
         <main className={view === "Network" ? "network-page" : "standalone-page"}>
-          {view !== "Network" && <div className="page-heading">
+          {view === "Settings" && <AISettings onSaved={() => { void load(); }} onIntegrations={() => setModal("settings")} />}
+          {view !== "Network" && view !== "Settings" && <div className="page-heading">
             <div>
               <div className="eyebrow">RELATIONSHIPS, WITH EVIDENCE</div>
               <h1>{view === "Overview" ? "Your workspace, connected." : view}</h1>
@@ -821,7 +824,7 @@ export default function Home() {
               </form>
 
               {!canExtract && (
-                <p className="muted">ANTHROPIC_API_KEY is not set, so planning and answering are unavailable.</p>
+                <p className="muted">Add an API key in Settings to enable AI planning and answers.</p>
               )}
 
               {answer && (
@@ -945,7 +948,7 @@ export default function Home() {
 
               {!canExtract && (
                 <div role="alert" className="notice">
-                  ANTHROPIC_API_KEY is not set, so extraction is unavailable. Browsing the graph still works.
+                  Add an API key in Settings to enable extraction. Browsing the graph still works.
                 </div>
               )}
               {listError && (

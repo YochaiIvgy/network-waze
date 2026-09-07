@@ -222,3 +222,19 @@ the behaviour that is easy to silently break:
 [PASS] a route to Janet Reyes exists, and runs through Marcus Webb
 [PASS] LP search surfaces the allocators
 ```
+
+### AI provider settings
+
+Open **Settings** in the sidebar to choose Claude (Anthropic), OpenAI, or Google Gemini. Enter your API key and the app loads the models available to that account; pick one and save. The active selection applies to subsequent extraction and natural-language search requests without restarting the app. Models must support structured JSON output.
+
+Settings are installation-wide and stored in `.waze-settings/ai.json` (git-ignored). Keys are stored as plaintext on the server with restrictive file modes where supported; they are never returned to the browser. Protect this directory as you would `.env`. Set `WAZE_SETTINGS_DIR` to use another persistent directory. This local, single-user app does not provide per-user settings or authentication.
+
+Existing `ANTHROPIC_API_KEY` and `WAZE_MODEL` values remain defaults. `OPENAI_API_KEY` and `GEMINI_API_KEY` (or `GOOGLE_API_KEY`) are also supported. A saved key overrides its environment variable. Leaving the key field blank preserves it; removing a saved key falls back to the environment variable if one exists. Saving does not test account access or spend API credits.
+
+Run `npx tsx scripts/verify-ai-settings.ts` to verify persistence, secret redaction, provider routing, and output validation with mocked requests.
+
+### Embedded database startup failures
+
+The embedded database allows one app process at a time. Stop the dev server before running database CLI commands. The app now uses an exclusive directory lock and skips database initialization during production builds. A forced shutdown can leave the lock active for up to one minute.
+
+If startup reports a database recovery error, stop the app and preserve a complete copy of the data directory before attempting repairs. Do not use `db:reset` to repair a damaged checkpoint. `npx tsx scripts/verify-db-lock.ts` tests the build guard, exclusive access, and persistence using a temporary database.

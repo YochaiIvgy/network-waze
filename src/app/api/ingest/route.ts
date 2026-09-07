@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getWorkspace } from "@/lib/db";
 import { normalizeGranola } from "@/lib/ingest/granola";
 import { ingestSource } from "@/lib/ingest/pipeline";
-import { hasAnthropicKey } from "@/lib/anthropic";
+import { hasAIKey } from "@/lib/anthropic";
 
 export const dynamic = "force-dynamic";
 // Extraction on a long transcript is the slowest thing the app does.
@@ -10,9 +10,9 @@ export const maxDuration = 300;
 
 export async function POST(request: Request) {
   try {
-    if (!hasAnthropicKey()) {
+    if (!hasAIKey()) {
       return NextResponse.json(
-        { error: "ANTHROPIC_API_KEY is not set. Extraction needs it; browsing the graph does not." },
+        { error: "Add an API key in Settings to enable extraction." },
         { status: 400 },
       );
     }
