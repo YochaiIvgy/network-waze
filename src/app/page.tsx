@@ -6,12 +6,14 @@ import {
   ChevronDown, Sun, Moon, SlidersHorizontal, X, Sparkles, Check, Link2, Settings2,
   GitMerge, CircleHelp, Gauge, Quote as QuoteIcon,
 } from "lucide-react";
+import { NetworkSearch } from "@/components/NetworkSearch";
 import { NetworkCanvas } from "@/components/NetworkCanvas";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import type { ViewEdge, ViewEntity, ViewGraph } from "@/lib/view-model";
 
 const NAV = {
+  Overview: Gauge,
   Network,
   People: Users,
   Organizations: Building2,
@@ -69,6 +71,7 @@ const pct = (n: number) => `${Math.round(n * 100)}%`;
 export default function Home() {
   const [g, setG] = useState<ViewGraph>(EMPTY);
   const [view, setView] = useState<ViewName>("Network");
+  const [detailOpen, setDetailOpen] = useState(false);
   const [selected, setSelected] = useState("");
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState("All entities");
@@ -135,7 +138,7 @@ export default function Home() {
     const p = new URLSearchParams(location.search);
     // Views are deep-linkable, so a particular screen can be shared or bookmarked.
     const requested = p.get("view");
-    if (requested && requested in NAV) setView(requested as ViewName);
+    if (requested && Object.hasOwn(NAV, requested)) setView(requested as ViewName);
     if (p.has("connected")) {
       setView("Meetings");
       setNotice("Granola connected. Extract a meeting to add it to your network.");
@@ -214,15 +217,32 @@ export default function Home() {
     localStorage.setItem("waze-theme", next ? "dark" : "light");
   }
 
+  useEffect(() => {
+    const restoreView = () => {
+      const requested = new URLSearchParams(location.search).get("view");
+      setView(requested && Object.hasOwn(NAV, requested) ? requested as ViewName : "Network");
+      setQ("");
+      setFilter("All entities");
+      setDetailOpen(false);
+    };
+    window.addEventListener("popstate", restoreView);
+    return () => window.removeEventListener("popstate", restoreView);
+  }, []);
+
   function nav(v: ViewName) {
     setView(v);
+    setDetailOpen(false);
+    if (v === "People" || v === "Organizations") {
+      const type = v === "People" ? "person" : "organization";
+      setSelected(g.entities.find(e => e.type === type)?.id || "");
+    }
     setQ("");
     setFilter("All entities");
     const url = new URL(location.href);
     url.searchParams.set("view", v);
     url.searchParams.delete("connected");
     url.searchParams.delete("error");
-    history.replaceState(null, "", url);
+    history.pushState(null, "", url);
   }
 
   async function action(url: string, body: unknown) {
@@ -268,7 +288,7 @@ export default function Home() {
         <div className="nav-label">WORKSPACE</div>
         <nav>
           {(Object.entries(NAV) as Array<[ViewName, typeof Network]>).map(([name, Icon]) => (
-            <button key={name} className={`nav-item ${view === name ? "active" : ""}`} onClick={() => nav(name)}>
+            <button key={name} aria-label={name} aria-current={view === name ? "page" : undefined} className={`nav-item ${view === name ? "active" : ""}`} onClick={() => nav(name)}>
               <Icon size={18} />
               <span>{name}</span>
               {name === "Entity review" && g.reviews.length > 0 && <b>{g.reviews.length}</b>}
@@ -323,13 +343,13 @@ export default function Home() {
           </div>
         </header>
 
-        <main>
-          <div className="page-heading">
+        <main className={view === "Network" ? "network-page" : "standalone-page"}>
+          {view !== "Network" && <div className="page-heading">
             <div>
               <div className="eyebrow">RELATIONSHIPS, WITH EVIDENCE</div>
-              <h1>{view === "Network" ? "Your network. Connected." : view}</h1>
+              <h1>{view === "Overview" ? "Your workspace, connected." : view}</h1>
               <p>
-                {view === "Network"
+                {view === "Overview"
                   ? "Every conversation adds a connection. See where yours can take you."
                   : view === "Introduction paths"
                     ? "The most likely way in, ranked by the probability the whole chain works."
@@ -337,7 +357,11 @@ export default function Home() {
                       ? "Plan, retrieve, route, answer — with every claim traced back to a meeting."
                       : view === "Entity review"
                         ? "Resolve uncertain identities using the context behind each mention."
-                        : "One place for your relationships and the conversations behind them."}
+                        : view === "People"
+                          ? "The people you know, and the context that brings you closer."
+                          : view === "Organizations"
+                            ? "Companies, funds, and communities connected to your world."
+                            : "The conversations behind your connections."}
               </p>
             </div>
             <Button
@@ -350,7 +374,7 @@ export default function Home() {
               <Plus size={17} />
               {view === "Meetings" ? "Paste transcript" : connected ? "Browse meetings" : "Import meeting"}
             </Button>
-          </div>
+          </div>}
 
           {notice && (
             <div role="status" className="notice">
@@ -370,6 +394,7 @@ export default function Home() {
             </div>
           )}
 
+          {view === "Overview" && <>
           <div className="stats">
             {([
               [Users, "People", g.stats.people, "Across your conversations"],
@@ -409,22 +434,16 @@ export default function Home() {
             </button>
           </div>
 
+          <div className="overview-links">
+            <button onClick={() => nav("Network")}><Network size={26} /><h2>Explore your network</h2><p>Follow the connections behind your next introduction.</p><ArrowUpRight size={20} /></button>
+            <button onClick={() => nav("Meetings")}><AudioLines size={26} /><h2>Start with a conversation</h2><p>Bring your meeting context into your network.</p><ArrowUpRight size={20} /></button>
+          </div>
+          </>}
+
           {["Network", "People", "Organizations"].includes(view) && (
             <div className="network-layout">
               <section className="network-panel">
-                <div className="panel-toolbar">
-                  <div className="view-tabs">
-                    <button className={view === "Network" ? "selected" : ""} onClick={() => nav("Network")}>
-                      <Network size={15} />
-                      Graph view
-                    </button>
-                    <button className={view !== "Network" ? "selected" : ""} onClick={() => nav("People")}>
-                      <Users size={15} />
-                      Directory
-                    </button>
-                  </div>
-                  <span className="entity-count">{visible.length} entities</span>
-                </div>
+                {view !== "Network" && <div className="panel-toolbar"><strong>{view}</strong><span className="entity-count">{visible.filter(e => e.type === (view === "People" ? "person" : "organization")).length} {view.toLowerCase()}</span></div>}
 
                 <div className="graph-filters">
                   <label className="search-box">
@@ -436,14 +455,14 @@ export default function Home() {
                       onChange={(e) => setQ(e.target.value)}
                     />
                   </label>
-                  <label className="filter-select">
+                  {view === "Network" && <label className="filter-select">
                     <SlidersHorizontal size={14} />
                     <select aria-label="Filter entity type" value={filter} onChange={(e) => setFilter(e.target.value)}>
                       <option>All entities</option>
                       <option>People</option>
                       <option>Organizations</option>
                     </select>
-                  </label>
+                  </label>}
                 </div>
 
                 {view === "Network" ? (
@@ -451,7 +470,7 @@ export default function Home() {
                     graph={g}
                     visible={visible}
                     selected={selected}
-                    onSelect={setSelected}
+                    onSelect={(id) => { setSelected(id); setDetailOpen(true); }}
                     empty={
                       <div className="empty-overlay">
                         <strong>
@@ -496,12 +515,13 @@ export default function Home() {
                           <ArrowUpRight size={16} />
                         </button>
                       ))}
-                    {!visible.length && <p className="empty">No matching entities.</p>}
+                    {!visible.some(e => e.type === (view === "People" ? "person" : "organization")) && <p className="empty">No matching entities.</p>}
                   </div>
                 )}
               </section>
 
-              <aside className="detail-panel">
+              <aside className="detail-panel" hidden={view === "Network" && !detailOpen}>
+                {view === "Network" && <button className="detail-close icon-button" onClick={() => setDetailOpen(false)} aria-label="Close entity details"><X size={18} /></button>}
                 {entity ? (
                   <>
                     <div className="detail-caption">
@@ -637,6 +657,7 @@ export default function Home() {
                   <p className="empty">Select an entity to see its context.</p>
                 )}
               </aside>
+              {view === "Network" && <NetworkSearch />}
             </div>
           )}
 

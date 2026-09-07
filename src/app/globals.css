@@ -84,3 +84,86 @@
 .self-toggle:hover{border-color:var(--primary);color:var(--primary)}
 .self-toggle.on{border-color:var(--primary);background:var(--red-soft);color:var(--primary);font-weight:550}
 .self-toggle.on:before{content:'';width:6px;height:6px;border-radius:50%;background:var(--primary);flex-shrink:0}
+
+/* Independent pages and an edge-to-edge network workspace. */
+.sidebar{overflow-y:auto}
+.sidebar nav{flex-shrink:0}
+.standalone-page{animation:page-arrive 240ms ease-out}
+.overview-links{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:28px}
+.overview-links button{text-align:left;padding:28px;border:1px solid var(--border);border-radius:14px;background:var(--subtle)}
+.overview-links h2{font-size:20px;margin:20px 0 10px}
+.overview-links p{color:var(--muted);line-height:1.7;margin-bottom:20px}
+
+.network-page{position:relative;padding:0;max-width:none;height:calc(100dvh - 73px);min-height:420px;overflow:hidden}
+.network-page .network-layout,.network-page .network-panel{position:absolute;inset:0;display:block;border:0;border-radius:0}
+.network-page .interactive-network{position:absolute;inset:0;min-height:0!important;background-image:radial-gradient(var(--dot) .8px,transparent .8px);background-size:22px 22px}
+.network-page .interactive-network>svg{width:100%;height:100%;min-height:0!important}
+.network-page .graph-filters{position:absolute;top:20px;left:24px;z-index:3;width:min(510px,calc(100% - 48px));padding:0;background:none}
+.network-page .search-box,.network-page .filter-select{background:var(--background);border-radius:10px;box-shadow:0 2px 8px #00000004}
+.network-page .search-box{padding:12px}
+.network-page .graph-controls{position:absolute;top:78px;left:24px;right:24px;padding:0;z-index:2}
+.network-page .chip-range{background:var(--background)}
+.network-page .graph-footer{background:none;border:0;bottom:16px;padding:0 24px;pointer-events:none}
+.network-page .graph-footer>*{pointer-events:auto}
+.network-page .legend{max-width:240px;gap:8px 14px;font-size:10px}
+.network-page .zoom{border-radius:10px;padding:4px}
+.network-page .detail-panel{position:absolute;z-index:5;right:20px;top:20px;bottom:90px;width:320px;overflow:auto;box-shadow:0 12px 50px #0000000d;animation:detail-arrive 280ms cubic-bezier(.16,1,.3,1);display:block}
+.network-page .detail-panel[hidden]{display:none}
+.detail-close{margin-left:auto;margin-bottom:12px}
+.network-page .page-footer{display:none}
+.network-page>.notice{position:relative;z-index:6;margin:12px 24px;box-shadow:0 3px 12px #00000008}
+.network-page .empty-overlay{top:38%}
+
+/* One continuous surface: quiet hover lift, then a soft, fast-settling expansion. */
+.network-search{position:absolute;z-index:4;bottom:28px;left:50%;transform:translateX(-50%);width:240px;height:48px;max-width:calc(100% - 32px);--search-ease:cubic-bezier(.22,1,.36,1);transition:width 520ms var(--search-ease),height 440ms var(--search-ease)}
+.network-search::before{content:"";position:absolute;inset:0;border:1px solid var(--border);border-radius:26px;background:var(--background);box-shadow:0 2px 6px #00000003,0 6px 24px #00000008;pointer-events:none;transition:transform 420ms var(--search-ease),box-shadow 420ms var(--search-ease),border-color 320ms,border-radius 440ms var(--search-ease)}
+.network-search.is-open{width:680px;height:130px}
+.network-search.is-open::before{border-radius:22px;border-color:color-mix(in srgb,var(--foreground) 17%,var(--border));box-shadow:0 2px 6px #00000004,0 14px 48px #00000010}
+.search-launcher{position:absolute;inset:0;display:flex;align-items:center;justify-content:space-between;gap:14px;padding:0 17px;border:0;border-radius:26px;background:transparent;color:var(--muted);font-size:13px;transition:opacity 140ms ease-out,transform 420ms var(--search-ease),color 260ms}
+.search-launcher:hover{filter:none;color:var(--foreground)}
+.search-logo{width:23px;height:23px;object-fit:cover;object-position:top;clip-path:inset(0 0 4% 0 round 4px);transition:transform 500ms var(--search-ease)}
+.search-launcher>svg{opacity:.55;transition:opacity 300ms,transform 420ms var(--search-ease)}
+@media(hover:hover) and (prefers-reduced-motion:no-preference){
+.network-search:not(.is-open):has(.search-launcher:hover)::before{transform:translateY(-2px) scale(1.025);box-shadow:0 3px 8px #00000004,0 12px 32px #0000000d;border-color:color-mix(in srgb,var(--foreground) 12%,var(--border))}
+.search-launcher:hover{transform:translateY(-2px)}
+.search-launcher:hover .search-logo{transform:rotate(-4deg) scale(1.06)}
+.search-launcher:hover>svg{opacity:1;transform:translateX(2px)}
+.network-search:not(.is-open):has(.search-launcher:active)::before{transform:scale(.985);transition-duration:120ms}
+}
+.is-open .search-launcher{opacity:0;pointer-events:none;transform:translateY(4px) scale(.97)}
+.network-composer{position:absolute;inset:0;display:flex;flex-direction:column;border:0;border-radius:22px;background:transparent;padding:13px 17px;opacity:0;visibility:hidden;transform:translateY(6px);transition:opacity 120ms ease-out,transform 320ms var(--search-ease),visibility 120ms}
+.is-open .network-composer{opacity:1;visibility:visible;transform:none;transition-delay:110ms}
+.network-composer textarea{resize:none;border:0;outline:none;box-shadow:none;width:100%;min-height:0;flex:1;font-size:15px;line-height:1.5;padding:5px 0 8px;background:none}
+.network-composer textarea:focus-visible{outline:none}
+.composer-bottom{display:flex;align-items:center;justify-content:space-between;font-size:11px;color:var(--muted);gap:16px}
+.composer-send{border:0;background:var(--foreground);color:var(--background);width:32px;height:32px;border-radius:50%;display:grid;place-items:center;flex-shrink:0;transition:transform 240ms var(--search-ease),opacity 200ms}
+.composer-send:active{transform:scale(.92)}
+.composer-send:disabled{cursor:default;opacity:.25}
+
+@keyframes page-arrive{from{opacity:0;transform:translateY(5px)}
+to{opacity:1;transform:none}
+}
+@keyframes detail-arrive{from{opacity:0;transform:translateX(12px)}
+to{opacity:1;transform:none}
+}
+
+@media(max-width:1100px){.network-page .legend{display:none}
+.network-search{bottom:76px}
+.network-page .detail-panel{bottom:138px}
+}
+
+@media(max-width:600px){.network-page{height:calc(100dvh - 58px)}
+.network-page .graph-filters{left:12px;top:12px;width:calc(100% - 24px)}
+.network-page .search-box{flex-basis:100%}
+.network-page .graph-controls{top:110px;left:12px;right:12px;gap:7px}
+.network-page .graph-count{display:none}
+.network-page .detail-panel{top:12px;right:12px;width:calc(100% - 24px);margin:0}
+.network-page .graph-footer{padding:0 12px}
+.network-search.is-open{height:146px}
+.composer-bottom{font-size:10px}
+.overview-links{grid-template-columns:1fr}
+}
+
+@media(prefers-reduced-motion:reduce){.network-search,.network-search::before,.network-composer,.search-launcher,.search-logo,.search-launcher>svg,.composer-send{transition:none}
+.standalone-page,.network-page .detail-panel{animation:none}
+}

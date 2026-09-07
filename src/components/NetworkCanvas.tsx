@@ -64,6 +64,8 @@ export function NetworkCanvas({
   const edgeEls = useRef(new Map<string, SVGLineElement>());
   const alphaRef = useRef(0.35);
   const frameRef = useRef<number | null>(null);
+  const [viewport, setViewport] = useState({ width: 850, height: 540 });
+  const viewportRef = useRef({ width: 850, height: 540 });
   const cameraRef = useRef<Camera>({ x: 425, y: 250, k: 1 });
   const dragRef = useRef<{ pointer: number; id?: string; lastX: number; lastY: number; moved: boolean } | null>(null);
 
@@ -85,6 +87,29 @@ export function NetworkCanvas({
     rootRef.current?.setAttribute("transform", `translate(${c.x} ${c.y}) scale(${c.k})`);
   }, []);
 
+  useEffect(() => {
+    const svg = svgRef.current;
+    if (!svg) return;
+    const observer = new ResizeObserver(([entry]) => {
+      const { width, height } = entry.contentRect;
+      if (!width || !height) return;
+      cameraRef.current.x += (width - viewportRef.current.width) / 2;
+      cameraRef.current.y += (height - viewportRef.current.height) / 2;
+      viewportRef.current = { width, height };
+      setViewport({ width, height });
+      applyCamera();
+    });
+    observer.observe(svg);
+    return () => observer.disconnect();
+  }, [applyCamera]);
+
+  function fitViewport(points: Record<string, Point>) {
+    const c = fitNetwork(points);
+    const { width, height } = viewportRef.current;
+    const scale = Math.max(.1, Math.min((width - 48) / 850, (height - 200) / 540));
+    return { k: c.k * scale, x: width / 2 + (c.x - 425) * scale, y: height / 2 + (c.y - 250) * scale };
+  }
+
   const wake = useCallback((heat: number) => {
     alphaRef.current = Math.max(alphaRef.current, heat);
     if (frameRef.current === null) frameRef.current = requestAnimationFrame(step);
@@ -103,7 +128,7 @@ export function NetworkCanvas({
       const p: Point = base[node.id] ?? { x: 0, y: 0 };
       return { id: node.id, x: p.x, y: p.y, vx: 0, vy: 0, node };
     });
-    cameraRef.current = fitNetwork(base);
+    cameraRef.current = fitViewport(base);
     setZoomPct(Math.round(cameraRef.current.k * 100));
     applyCamera();
     alphaRef.current = 0.35;
@@ -252,7 +277,7 @@ export function NetworkCanvas({
     return new DOMPoint(x, y).matrixTransform(matrix.inverse());
   };
 
-  const zoom = (factor: number, anchor: Point = { x: 425, y: 250 }) => {
+  const zoom = (factor: number, anchor: Point = { x: viewportRef.current.width / 2, y: viewportRef.current.height / 2 }) => {
     const c = cameraRef.current;
     const k = Math.min(4, Math.max(0.08, c.k * factor));
     const ratio = k / c.k;
@@ -327,7 +352,7 @@ export function NetworkCanvas({
 
   function fit() {
     const points = Object.fromEntries(simRef.current.map((s) => [s.id, { x: s.x, y: s.y }]));
-    cameraRef.current = fitNetwork(points);
+    cameraRef.current = fitViewport(points);
     applyCamera();
     setZoomPct(Math.round(cameraRef.current.k * 100));
   }
@@ -366,7 +391,7 @@ export function NetworkCanvas({
 
       <svg
         ref={svgRef}
-        viewBox="0 0 850 540"
+        viewBox={`0 0 ${viewport.width} ${viewport.height}`}
         aria-label="Relationship network. Drag nodes to rearrange them, drag the background to pan, scroll to zoom."
         onPointerDown={(e) => onPointerDown(e)}
         onPointerMove={onPointerMove}
@@ -380,7 +405,7 @@ export function NetworkCanvas({
             <circle cx="1" cy="1" r=".8" fill="var(--dot)" />
           </pattern>
         </defs>
-        <rect width="850" height="540" fill="url(#network-dots)" />
+        <rect width={viewport.width} height={viewport.height} fill="url(#network-dots)" />
 
         <g ref={rootRef}>
           {activeEdges.map((e) => {
