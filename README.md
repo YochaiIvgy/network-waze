@@ -15,14 +15,24 @@ that justify it.
 ```bash
 npm install
 npm run db:push      # create the schema
-npm run db:seed      # load a demo network (no API key needed)
 npm run dev          # http://localhost:3000
 ```
+
+The workspace starts **empty**. There is no demo data and no way to load any —
+every person in your graph got there from a transcript you supplied, which is the
+only way the citations under each edge mean anything.
 
 That works with **zero configuration**. With no `DATABASE_URL`, the app runs on an
 embedded Postgres (PGlite — real Postgres compiled to WASM) persisted to
 `./.waze-data`. To use a real server instead — Supabase, Neon, local — set
 `DATABASE_URL` in `.env` and re-run `npm run db:push`; nothing else changes.
+
+> **PGlite is single-writer.** Only one process may hold `./.waze-data` at a
+> time. Stop `npm run dev` before running `db:push`, `ingest`, `reproject` or
+> `verify`, or the WASM instance aborts and the directory is left corrupt
+> (recover with `npm run db:reset`, then re-ingest). Setting
+> `DATABASE_URL` removes the restriction entirely, which is the better setup once
+> you are ingesting real meetings.
 
 To ingest your own transcripts you need `ANTHROPIC_API_KEY`:
 
@@ -31,8 +41,27 @@ cp .env.example .env      # add your key
 npm run ingest -- ./granola-export   # a file or a whole directory
 ```
 
-Or paste one into the **Add transcript** page. Re-ingesting the same note is a
-no-op — sources are keyed by content hash.
+Three other ways in, all landing in the same pipeline:
+
+- **Connect Granola** in the app (Settings → Connect Granola). OAuth with PKCE and
+  dynamic client registration; tokens are encrypted with a key derived from a
+  secret that lives only in your cookie, so the `granola_sessions` row is useless
+  on its own. You then browse your real meetings and extract one with a click.
+- **Paste a transcript** into the import dialog.
+- `npm run ingest` for a file or a whole export directory.
+
+Re-ingesting the same note is a no-op — sources are keyed by content hash.
+
+### Granola is a source, not the extractor
+
+The Granola connection calls exactly two tools: `list_meetings` and
+`get_meeting_transcript`. Its conversational `query_granola_meetings` tool is
+deliberately never used for analysis. A chat endpoint cannot promise a schema, so
+building a claim ledger on it means chunking the transcript, re-asking on failure,
+and validating prose after the fact. Instead the raw transcript goes to one
+structured model call that sees the whole meeting at once — which is also why a
+relationship raised in minute 3 and confirmed in minute 40 becomes a single claim
+with two quotes rather than two fragments to reconcile later.
 
 ---
 
@@ -69,6 +98,11 @@ search over entity dossiers → routes from you → a written answer with citati
 The plan is returned alongside the answer, so a bad result is traceable to a bad
 plan or a thin graph rather than to an opaque box.
 
+**Who you are.** The graph is egocentric — every introduction path is computed
+*from* one node. Open your own entity once it appears and choose **This is me**;
+until you do, the app says so, paths have no origin, and search returns matches
+without routes.
+
 Full design rationale: **[ARCHITECTURE.md](ARCHITECTURE.md)**.
 
 ---
@@ -79,7 +113,6 @@ Full design rationale: **[ARCHITECTURE.md](ARCHITECTURE.md)**.
 |---|---|
 | `npm run dev` / `build` / `start` | the app |
 | `npm run db:push` | apply the schema (`--reset` to drop first) |
-| `npm run db:seed` | load the demo network through the real pipeline |
 | `npm run ingest -- <path>` | ingest a Granola file or directory |
 | `npm run reproject` | **rebuild the entire graph from the claim ledger** |
 | `npm run verify` | end-to-end smoke test, in-memory, no key needed |
@@ -98,41 +131,79 @@ re-projecting — never a migration.
 | Variable | Default | Notes |
 |---|---|---|
 | `DATABASE_URL` | *(unset)* | Unset → embedded PGlite at `./.waze-data`. Any Postgres 14+ works. |
-| `ANTHROPIC_API_KEY` | *(unset)* | Needed for ingestion and written answers. Browsing a seeded graph does not need it. |
+| `ANTHROPIC_API_KEY` | *(unset)* | Needed for ingestion and written answers. Browsing a graph you already built does not need it. |
 | `WAZE_MODEL` | `claude-opus-5` | Extraction and answer model. |
-| `WAZE_EMBEDDING_PROVIDER` | `hash` | `hash` is deterministic, offline and lexical — fine for the demo. Set `voyage` (+ `VOYAGE_API_KEY`) for real semantic retrieval; it noticeably improves candidate ranking. |
+| `WAZE_EMBEDDING_PROVIDER` | `hash` | `hash` is deterministic, offline and lexical — enough to get started. Set `voyage` (+ `VOYAGE_API_KEY`) for real semantic retrieval; it noticeably improves candidate ranking. |
 | `WAZE_DATA_DIR` | `./.waze-data` | Embedded database location. |
+| `WAZE_APP_ORIGIN` | *(unset)* | Only needed to connect Granola from a non-localhost deployment. The OAuth redirect URI is derived from the request origin, so this pins which origin may start a sign-in. |
+| `WAZE_EXTRA_CA_CERTS` | *(unset)* | Optional extra PEM. On Windows the launcher already loads the OS trust store (same roots Avast / corporate proxies install). Set this only if that is not enough — see below. |
+
+### HTTPS inspection
+
+`network-analysis` talks to Granola from Cloudflare's workerd runtime, which
+reads the Windows certificate store. This app is Next.js on Node, which does
+not — so Avast (or a corporate proxy) re-signing HTTPS looks like a bad
+certificate and Connect Granola fails with `UNABLE_TO_VERIFY_LEAF_SIGNATURE`.
+
+`npm run dev` already closes that gap: on Node 22.15+ it passes
+`--use-system-ca`; on older Node on Windows it dumps Trusted Root CAs into
+`NODE_EXTRA_CA_CERTS` before Next starts. Restart the server after a first
+clone. You should not need a manual CA file.
+
+If it still fails, export the interceptor's **root** CA as PEM and set
+`WAZE_EXTRA_CA_CERTS` in `.env`, or turn off HTTPS scanning in the antivirus
+(Avast: Protection → Core Shields → Web Shield → Enable HTTPS scanning).
 
 ---
 
 ## Layout
 
 ```
-db/schema.sql          the five layers, commented
-db/seed-data.ts        demo meetings + hand-authored extractions
+db/schema.sql          the five layers, commented, + granola_sessions
 src/lib/extraction/    prompt + Zod contract + structural repair
 src/lib/ingest/        Granola normalisation, the L0->L3 pipeline
 src/lib/resolution/    blocking, feature scoring, merge/review decisions
 src/lib/graph/         strength scoring, projection, Dijkstra, metrics
 src/lib/search/        query planner, hybrid retrieval, answer composition
-src/app/               overview, graph, people, profiles, meetings, ask, ingest, review
+src/lib/granola/       OAuth + MCP transport, tolerant response readers
+src/lib/view-model.ts  the one place the ledger is flattened for the UI
+src/lib/network-layout.ts  deterministic clustered spring layout
+src/app/page.tsx       the whole client: graph, directory, paths, ask, meetings, review
+src/app/api/           graph, paths, ingest, search, review, granola
 scripts/verify.ts      end-to-end assertions over the real pipeline
+scripts/fixtures/      test fixtures for verify — never loaded into a workspace
 ```
+
+The UI is a single client page against a small JSON surface, not a set of server
+routes. `src/lib/view-model.ts` is the only file that knows both shapes: the UI
+thinks in `person | organization` and one flat edge list because that is what a
+canvas can draw, while the ledger keeps typed claims and score terms. Nothing
+derived is flattened away in the translation — strength, warmth, traversal
+probability and the per-term breakdown all reach the client, because the point of
+an explicit scoring model is that you can see why an edge ranked where it did.
+
+Views are deep-linkable: `/?view=Introduction%20paths`.
 
 ---
 
 ## Design
 
 White with red accents, from the 46c mark; light and dark themes with an explicit
-toggle (right-click it to fall back to the OS setting). The red is reserved for
-the mark, the primary action, the "you" node and the current selection —
-everything else is greyscale so the data stays the loudest thing on screen.
+toggle. The red is reserved for the mark, the primary action, the "you" node and
+the current selection — everything else is greyscale so the data stays the
+loudest thing on screen.
 
-Entity-type colours were validated with a palette checker: all-pairs
-colour-vision separation, chroma floor, lightness band and surface contrast all
-pass in **both** themes, and every colour ships beside a text label so identity is
-never carried by colour alone. The graph is a purpose-built canvas force layout —
-strong ties pull tighter, former ties are dashed, awareness edges are dotted.
+The graph is a hand-written SVG canvas over a deterministic clustered spring
+layout: connected components are seeded apart, then edges attract and nodes repel
+for a fixed number of ticks. Determinism is the point — the same graph lays out
+the same way on every reload, so the spatial memory you build of your own network
+survives a refresh. Drag a node to rearrange it, drag the background to pan,
+scroll to zoom; nodes are keyboard-reachable and arrow keys nudge them.
+
+Edges are drawn at a weight and opacity taken from `strength`, and former ties are
+dashed. That matters more than it sounds: awareness edges ("A mentioned B") are
+the majority of any real graph, and drawing them at full strength makes the
+picture look far denser and warmer than the evidence supports.
 
 ---
 

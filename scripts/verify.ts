@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
-import { SEED_MEETINGS, SELF_NAME } from "../db/seed-data";
+import { FIXTURE_MEETINGS, FIXTURE_SELF_NAME } from "./fixtures/meetings";
 import { closePool, createEmbeddedPool, one, query, setPool } from "../src/lib/db";
 import { projectGraph } from "../src/lib/graph/project";
 import { loadGraph } from "../src/lib/graph/graph-cache";
@@ -43,7 +43,7 @@ async function main() {
   const ws = (await one<{ id: string }>(`SELECT id FROM workspaces WHERE slug = 'default'`))!;
 
   console.log("\nIngesting seed meetings through the real pipeline");
-  for (const meeting of SEED_MEETINGS) {
+  for (const meeting of FIXTURE_MEETINGS) {
     const body = `[ATTENDEES]\n${meeting.attendees.map((a) => `- ${a.name}`).join("\n")}\n\n[TRANSCRIPT]\n${meeting.transcript}`;
     const src = (await one<{ id: string }>(
       `INSERT INTO sources (workspace_id, kind, title, occurred_at, body, raw, content_hash,
@@ -147,7 +147,7 @@ async function main() {
   // --- Path finding ----------------------------------------------------------
   console.log("\nPath finding");
   const graph = await loadGraph(ws.id, true);
-  const self = [...graph.nodes.values()].find((n) => n.name === SELF_NAME);
+  const self = [...graph.nodes.values()].find((n) => n.name === FIXTURE_SELF_NAME);
   check("self node present", Boolean(self), self?.name);
 
   const janet = [...graph.nodes.values()].find((n) => n.name.includes("Janet"));

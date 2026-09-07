@@ -285,3 +285,22 @@ CREATE INDEX IF NOT EXISTS search_queries_ws_idx ON search_queries (workspace_id
 --
 -- then reimplement `topK` in vector-index.ts as an ORDER BY embedding_v <=> $1.
 -- No other file changes.
+
+-- ---------------------------------------------------------------------------
+-- Granola connection (transport only)
+-- ---------------------------------------------------------------------------
+-- Granola supplies transcripts; it does not extract anything. See
+-- lib/granola/client.ts and ARCHITECTURE.md ("L0 — Sources").
+--
+-- `id` is SHA-256 of a random secret held only in the user's cookie, and `data`
+-- is AES-GCM ciphertext keyed from that same secret. A dump of this table
+-- therefore contains no usable Granola credentials.
+
+CREATE TABLE IF NOT EXISTS granola_sessions (
+  id          text PRIMARY KEY,
+  data        text NOT NULL,
+  expires_at  timestamptz NOT NULL,
+  created_at  timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS granola_sessions_expiry_idx ON granola_sessions (expires_at);

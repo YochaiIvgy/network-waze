@@ -3,15 +3,20 @@ import type {
   ExtractedOrg,
   ExtractedPerson,
   ExtractedRelationship,
-} from "../src/lib/extraction/schema";
+} from "../../src/lib/extraction/schema";
 
 /**
- * Demo network.
+ * Test fixtures for `npm run verify`. NOT application data.
  *
- * These are hand-authored extractions rather than model output, so `npm run
- * db:seed` works with no API key — but they are fed through the *real* pipeline
- * (persistExtraction -> resolveRun -> projectGraph), so the seeded graph is
- * produced by exactly the code that production ingestion runs.
+ * These never touch a real workspace: verify runs them against a throwaway
+ * in-memory Postgres. There is deliberately no way to load them into the
+ * database you actually use — an app that ships with invented people in it
+ * teaches you to distrust everything else it shows you.
+ *
+ * They are hand-authored extractions rather than model output, so verification
+ * needs no API key and no network — but they are fed through the *real*
+ * pipeline (persistExtraction -> resolveRun -> projectGraph), so what they
+ * exercise is exactly the code production ingestion runs.
  *
  * The data is designed to exercise the hard cases:
  *  - Sarah Chen appears in three meetings, once as just "Sarah"  (dedup)
@@ -645,6 +650,6 @@ Elena: Small industry. Send me the deck. If the committee likes it we can move b
   },
 };
 
-export const SEED_MEETINGS: SeedMeeting[] = [M1, M2, M3, M4, M5];
+export const FIXTURE_MEETINGS: SeedMeeting[] = [M1, M2, M3, M4, M5];
 
-export const SELF_NAME = "Alex Moreau";
+export const FIXTURE_SELF_NAME = "Alex Moreau";

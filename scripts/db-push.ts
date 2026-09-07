@@ -19,7 +19,7 @@ const DERIVED_TABLES = [
   "entities",
 ];
 
-const ALL_TABLES = [...DERIVED_TABLES, "claims", "mentions", "extraction_runs", "sources", "workspaces"];
+const ALL_TABLES = [...DERIVED_TABLES, "claims", "mentions", "extraction_runs", "sources", "granola_sessions", "workspaces"];
 
 async function main() {
   const reset = process.argv.includes("--reset");

@@ -229,3 +229,66 @@ cached system prefix, so re-runs and multi-pass extraction hit the prompt cache.
 
 **`extractor_version` on every row.** Mixed-version claims coexist. Re-projection
 can weight v2 claims above v1, or filter v1 out entirely, with no migration.
+
+---
+
+## Granola: transport, not extractor
+
+Granola is connected over OAuth (PKCE + dynamic client registration) and its MCP
+endpoint is called for exactly two things: `list_meetings` and
+`get_meeting_transcript`. Its conversational `query_granola_meetings` tool is
+never asked to produce structure.
+
+That boundary is deliberate, and it is what makes L1 possible. A chat endpoint
+returns prose. Building a claim ledger on prose means splitting the transcript
+into overlapping windows to fit a reply, re-asking when a reply is unusable,
+validating quotes against the source after the fact, and reconciling the same
+person appearing in four adjacent windows. Every one of those is a workaround for
+the absence of a schema.
+
+`messages.parse()` with a Zod contract removes the whole category: a malformed
+extraction is a type error before it reaches the ledger, and one call sees the
+entire meeting. A relationship raised early and confirmed late becomes one claim
+with two quotes rather than two fragments that entity resolution has to clean up
+afterwards. The cost is a single expensive call per meeting — which is the right
+thing to spend on, because everything downstream is a projection of its output and
+`npm run reproject` can rebuild that projection for free.
+
+Tokens are stored in `granola_sessions`, encrypted with AES-GCM under a key
+derived from a random secret that exists only in the user's cookie. The row is
+inert without that cookie, so a database dump leaks no Granola access.
+
+## The UI boundary
+
+`src/lib/view-model.ts` is the single translation between the ledger and the
+client. The UI works in `person | organization` and one flat edge list, because
+that is what a canvas can draw; the ledger keeps five entity types, sixteen
+relationship types, claims, and score terms.
+
+The rule for that seam is that nothing derived gets flattened away. `strength`,
+`warmth`, `traversalProbability`, the `{base, volume, diversity, recency}`
+breakdown, brokerage and evidence quotes all cross into the client. An explicit
+scoring model earns its complexity only if a user can see which term produced a
+ranking they disagree with — hiding the terms behind a single number would give
+up the main advantage of not having learned them.
+
+Path finding stays on the server (`/api/paths`). It needs the whole graph in
+memory, which is also what keeps the client a thin renderer: the UI never
+reimplements traversal, so there is exactly one ranking in the system.
+
+## No demo data, and the "you" node
+
+The workspace ships empty and there is no command that loads invented people into
+it. The hand-authored meetings under `scripts/fixtures/` exist only for
+`npm run verify`, which runs them against a throwaway in-memory Postgres. Mixing
+fabricated entities into a store whose entire value proposition is "every edge
+cites a real quote" would undermine the one property the architecture exists to
+guarantee.
+
+That removal exposed a dependency worth naming: `workspaces.self_entity_id` used
+to be set as a side effect of seeding, so a workspace built from real transcripts
+never had one. The graph is egocentric — `shortestPaths` runs *from* that node and
+`searchNetwork` silently skips routing when it is null — so the app now asks for
+it explicitly (`POST /api/workspace`) and says so in the UI while it is unset. The
+route only accepts a person already present in the workspace, because a self node
+that is an organisation makes "paths from you" meaningless.
