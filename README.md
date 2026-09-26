@@ -114,15 +114,27 @@ Full design rationale: **[ARCHITECTURE.md](ARCHITECTURE.md)**.
 | `npm run dev` / `build` / `start` | the app |
 | `npm run db:push` | apply the schema (`--reset` to drop first) |
 | `npm run ingest -- <path>` | ingest a Granola file or directory |
-| `npm run reproject` | **rebuild the entire graph from the claim ledger** |
+| `npm run reproject` | rebuild the graph while preserving network edits |
 | `npm run verify` | end-to-end smoke test, in-memory, no key needed |
 | `npm run typecheck` | `tsc --noEmit` |
 
-`reproject` is the one worth understanding. Observations are append-only and
-everything below them is derived, so you can change resolution weights, edge
-scoring or the dossier format and rebuild the whole graph from the transcripts you
-already paid to extract. Improving the extractor later means re-running it and
-re-projecting — never a migration.
+`reproject` rebuilds edges, metrics, dossiers and embeddings while preserving entity
+IDs, manual edits, tags, merges and deletions. `--reset-resolution` also rebuilds
+entity resolution; it refuses to run when that would discard curated entities.
+
+### Manage your network
+
+Use **Add entity** in Network, People or Organizations to create a profile manually.
+Select a profile and use **Edit & tags** to change its name, type, title,
+organization, notes and custom tags. **Core team** is a suggested tag you can apply
+to multiple people; it does not change the individual **This is me** path origin.
+Use **All tags** to filter the network by a tag.
+
+**Merge** lets you choose which profile to keep. It combines aliases, tags,
+mentions and connections, keeps the target profile's conflicting fields, and
+transfers the “you” designation if needed. **Delete** removes the entity and its
+connections from the visible network and routing, retaining original meeting
+evidence. Manual profile fields take precedence when projecting future evidence.
 
 ---
 

@@ -13,18 +13,20 @@ import { invalidateGraphCache } from "./graph-cache";
  * optimisation to reach for only when the rebuild stops being instant.
  */
 export async function projectGraph(workspaceId: string): Promise<{ entities: number; edges: number }> {
-  const result = await transaction(async (c) => {
-    await rebuildEntityAggregates(c, workspaceId);
-    const edges = await rebuildEdges(c, workspaceId);
-    await rebuildMetrics(c, workspaceId);
-    const { rows } = await c.query<{ n: string }>(
-      `SELECT count(*)::text AS n FROM entities WHERE workspace_id = $1 AND status <> 'merged'`,
-      [workspaceId],
-    );
-    return { entities: Number(rows[0].n), edges };
-  });
+  const result = await transaction((c) => projectGraphInTransaction(c, workspaceId));
   invalidateGraphCache(workspaceId);
   return result;
+}
+
+export async function projectGraphInTransaction(c: ClientLike, workspaceId: string) {
+  await rebuildEntityAggregates(c, workspaceId);
+  const edges = await rebuildEdges(c, workspaceId);
+  await rebuildMetrics(c, workspaceId);
+  const { rows } = await c.query<{ n: string }>(
+    `SELECT count(*)::text AS n FROM entities WHERE workspace_id = $1 AND status NOT IN ('merged', 'deleted')`,
+    [workspaceId],
+  );
+  return { entities: Number(rows[0].n), edges };
 }
 
 // ---------------------------------------------------------------------------
@@ -60,6 +62,7 @@ async function loadClaims(c: ClientLike, workspaceId: string): Promise<ClaimRow[
      LEFT JOIN mention_links sl ON sl.mention_id = cl.subject_mention_id
      LEFT JOIN mention_links ol ON ol.mention_id = cl.object_mention_id
      WHERE s.workspace_id = $1
+       AND NOT EXISTS (SELECT 1 FROM entities e WHERE e.id IN (sl.entity_id, ol.entity_id) AND e.status IN ('merged', 'deleted'))
      ORDER BY COALESCE(cl.observed_at, s.occurred_at, s.ingested_at) ASC`,
     [workspaceId],
   );
@@ -107,14 +110,14 @@ async function rebuildEntityAggregates(c: ClientLike, workspaceId: string) {
     attributes: Record<string, unknown>;
   }>(
     `SELECT id, entity_type, canonical_name, attributes FROM entities
-     WHERE workspace_id = $1 AND status <> 'merged'`,
+     WHERE workspace_id = $1 AND status NOT IN ('merged', 'deleted')`,
     [workspaceId],
   );
 
   const dossiers: Array<{ id: string; text: string; attributes: Record<string, unknown> }> = [];
   for (const e of entities) {
     const own = byEntity.get(e.id) ?? [];
-    const attributes = foldAttributes(e.attributes, own);
+    const attributes = { ...foldAttributes(e.attributes, own), ...(e.attributes.manual_profile as Record<string, unknown> ?? {}) };
     dossiers.push({ id: e.id, text: buildDossier(e.canonical_name, e.entity_type, attributes, own), attributes });
   }
 
@@ -218,6 +221,7 @@ function buildDossier(
 
   const head = parts.join(" — ");
   const lists = [
+    listLine("Tags", attrs.tags),
     listLine("Expertise", attrs.expertise),
     listLine("Sectors", attrs.sector),
     listLine("Interests", attrs.interests),

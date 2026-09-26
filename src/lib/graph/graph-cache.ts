@@ -67,7 +67,7 @@ export async function loadGraph(workspaceId: string, force = false): Promise<Loa
               m.degree, m.brokerage
        FROM entities e
        LEFT JOIN entity_metrics m ON m.entity_id = e.id
-       WHERE e.workspace_id = $1 AND e.status <> 'merged'`,
+       WHERE e.workspace_id = $1 AND e.status NOT IN ('merged', 'deleted')`,
       [workspaceId],
     ),
     query<GraphEdge>(

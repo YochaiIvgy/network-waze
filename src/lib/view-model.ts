@@ -32,6 +32,8 @@ export interface ViewEntity {
   type: ViewEntityType;
   /** Display line under the name: title, employer, or org descriptor. */
   role: string;
+  entityType?: string;
+  profile?: { title: string; org: string; description: string; tags: string[] };
   tags: string[];
   /** The generated dossier — prose, with the facts it was built from. */
   context: string;
@@ -144,7 +146,7 @@ export async function getViewGraph(): Promise<ViewGraph> {
                 WHERE a.entity_id = e.id AND a.kind IN ('email','handle')) AS aliases
          FROM entities e
          LEFT JOIN entity_metrics m ON m.entity_id = e.id
-        WHERE e.workspace_id = $1 AND e.status <> 'merged' AND e.entity_type = ANY($2)
+        WHERE e.workspace_id = $1 AND e.status NOT IN ('merged', 'deleted') AND e.entity_type = ANY($2)
         ORDER BY e.mention_count DESC, e.canonical_name ASC`,
       [ws.id, NODE_TYPES],
     ),
@@ -168,8 +170,8 @@ export async function getViewGraph(): Promise<ViewGraph> {
               e.confidence, e.evidence_count, e.source_diversity, e.first_seen, e.last_seen,
               e.context_card, e.attributes
          FROM edges e
-         JOIN entities a ON a.id = e.src_entity_id AND a.status <> 'merged'
-         JOIN entities b ON b.id = e.dst_entity_id AND b.status <> 'merged'
+         JOIN entities a ON a.id = e.src_entity_id AND a.status NOT IN ('merged', 'deleted')
+         JOIN entities b ON b.id = e.dst_entity_id AND b.status NOT IN ('merged', 'deleted')
         WHERE e.workspace_id = $1
         ORDER BY e.strength DESC`,
       [ws.id],
@@ -229,7 +231,7 @@ export async function getViewGraph(): Promise<ViewGraph> {
          FROM resolution_reviews r
          JOIN mentions m  ON m.id = r.mention_id
          JOIN entities c  ON c.id = r.candidate_id
-        WHERE r.workspace_id = $1 AND r.verdict IS NULL
+        WHERE r.workspace_id = $1 AND r.verdict IS NULL AND c.status NOT IN ('merged', 'deleted')
         ORDER BY r.score DESC`,
       [ws.id],
     ),
@@ -252,6 +254,8 @@ export async function getViewGraph(): Promise<ViewGraph> {
       id: row.id,
       name: row.canonical_name,
       type: row.entity_type === "person" ? "person" : "organization",
+      entityType: row.entity_type,
+      profile: { title: attributes.title ?? "", org: attributes.org ?? "", description: attributes.description ?? "", tags: attributes.tags ?? [] },
       role: describeRole(row.entity_type, attributes),
       tags: collectTags(attributes),
       context: row.dossier ?? "",
@@ -397,7 +401,7 @@ function collectTags(a: EntityAttributes): string[] {
   ]
     .map((t) => String(t).trim())
     .filter(Boolean);
-  return [...new Set(tags)].slice(0, 8);
+  return [...new Set(tags)];
 }
 
 function isScoreTerms(v: unknown): v is ViewEdge["scoreTerms"] & object {

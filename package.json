@@ -5,7 +5,7 @@
   "description": "Relationship graph built from meeting transcripts. Extract people, orgs and the intelligence on the edges between them; find warm paths to anyone.",
   "scripts": {
     "dev": "node scripts/with-ca.mjs next dev",
-    "build": "next build",
+    "build": "node scripts/with-ca.mjs next build",
     "start": "node scripts/with-ca.mjs next start",
     "typecheck": "tsc --noEmit",
     "db:push": "tsx scripts/db-push.ts",

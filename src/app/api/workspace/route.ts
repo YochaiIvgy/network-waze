@@ -33,7 +33,7 @@ export async function POST(request: Request) {
     // meaningless.
     const entity = await one<{ id: string; entity_type: string }>(
       `SELECT id, entity_type FROM entities
-        WHERE id = $1 AND workspace_id = $2 AND status <> 'merged'`,
+        WHERE id = $1 AND workspace_id = $2 AND status NOT IN ('merged', 'deleted')`,
       [selfEntityId, ws.id],
     );
     if (!entity) {

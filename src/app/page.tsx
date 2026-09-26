@@ -6,6 +6,7 @@ import {
   ChevronDown, Sun, Moon, SlidersHorizontal, X, Sparkles, Check, Link2, Settings2,
   GitMerge, CircleHelp, Gauge, Quote as QuoteIcon,
 } from "lucide-react";
+import { EntityManager } from "@/components/EntityManager";
 import { AISettings } from "@/components/AISettings";
 import { NetworkSearch } from "@/components/NetworkSearch";
 import { NetworkCanvas } from "@/components/NetworkCanvas";
@@ -76,6 +77,7 @@ export default function Home() {
   const [detailOpen, setDetailOpen] = useState(false);
   const [selected, setSelected] = useState("");
   const [q, setQ] = useState("");
+  const [tagFilter, setTagFilter] = useState("");
   const [filter, setFilter] = useState("All entities");
   const [dark, setDark] = useState(false);
   const [modal, setModal] = useState("");
@@ -110,6 +112,7 @@ export default function Home() {
     .sort((a, b) => b.strength - a.strength);
   const visible = g.entities.filter(
     (e) =>
+      (!tagFilter || e.tags.includes(tagFilter)) &&
       (filter === "All entities" || e.type === (filter === "People" ? "person" : "organization")) &&
       `${e.name} ${e.role} ${e.tags.join(" ")}`.toLowerCase().includes(q.toLowerCase()),
   );
@@ -449,6 +452,8 @@ export default function Home() {
                 {view !== "Network" && <div className="panel-toolbar"><strong>{view}</strong><span className="entity-count">{visible.filter(e => e.type === (view === "People" ? "person" : "organization")).length} {view.toLowerCase()}</span></div>}
 
                 <div className="graph-filters">
+                  <EntityManager entities={g.entities} onSaved={async id => { await load(); setSelected(id); setDetailOpen(true); setPaths([]); setAnswer(null); }} />
+                  <select aria-label="Filter by tag" value={tagFilter} onChange={e => setTagFilter(e.target.value)}><option value="">All tags</option>{[...new Set(g.entities.flatMap(e => e.tags))].sort().map(t => <option key={t}>{t}</option>)}</select>
                   <label className="search-box">
                     <Search size={16} />
                     <input
@@ -554,6 +559,7 @@ export default function Home() {
                         {entity.isSelf ? "This is you — paths start here" : "This is me"}
                       </button>
                     )}
+                    <EntityManager key={entity.id} entity={entity} entities={g.entities} onSaved={async id => { await load(); if (id) setSelected(id); setPaths([]); setConnectors([]); setAnswer(null); }} />
                     <div className="tags">
                       {entity.tags.map((t) => (
                         <span key={t}>{t}</span>

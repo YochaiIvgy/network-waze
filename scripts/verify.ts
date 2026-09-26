@@ -3,6 +3,7 @@ import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { FIXTURE_MEETINGS, FIXTURE_SELF_NAME } from "./fixtures/meetings";
 import { closePool, createEmbeddedPool, one, query, setPool } from "../src/lib/db";
+import { manageEntity } from "../src/lib/manage-entities";
 import { projectGraph } from "../src/lib/graph/project";
 import { loadGraph } from "../src/lib/graph/graph-cache";
 import { alternativePaths, pathsToMany, rankConnectors } from "../src/lib/graph/paths";
@@ -190,6 +191,38 @@ async function main() {
     check("connectors are rankable", connectors.length > 0,
       connectors.map((c) => `${c.name} (${c.unlocks})`).join(", "));
   }
+
+  console.log("\nNetwork management");
+  const custom = await manageEntity(ws.id, { action: "create", name: "Manual teammate", type: "person", title: "Engineer", org: "Our team", description: "Added by hand", tags: ["Core team", "core team", "Trusted"] });
+  let edited = (await loadGraph(ws.id)).nodes.get(custom.id);
+  check("manual entities and tags are searchable", !!edited?.dossier?.includes("Core team") && edited.attributes.tags?.length === 2);
+  if (self) {
+    const before = (await one<{ n: number }>(`SELECT count(*)::int AS n FROM mention_links WHERE entity_id = $1`, [self.id]))!.n;
+    await query(`UPDATE workspaces SET self_entity_id = $2 WHERE id = $1`, [ws.id, self.id]);
+    await manageEntity(ws.id, { action: "merge", id: self.id, targetId: custom.id });
+    const mergedGraph = await loadGraph(ws.id);
+    const pointer = await one<{ self_entity_id: string }>(`SELECT self_entity_id FROM workspaces WHERE id = $1`, [ws.id]);
+    check("merge transfers mentions, connections and self identity", !mergedGraph.nodes.has(self.id) && mergedGraph.nodes.get(custom.id)?.mentionCount === before && mergedGraph.edges.some(e => e.src_entity_id === custom.id || e.dst_entity_id === custom.id) && pointer?.self_entity_id === custom.id);
+    check("merge never creates self edges", mergedGraph.edges.every(e => e.src_entity_id !== e.dst_entity_id));
+  }
+  await manageEntity(ws.id, { action: "update", id: custom.id, name: "Edited teammate", type: "person", title: "Manual title", org: "Our team", description: "Updated notes", tags: ["Core team"] });
+  await projectGraph(ws.id);
+  edited = (await loadGraph(ws.id)).nodes.get(custom.id);
+  check("edits and tag removal survive projection", edited?.name === "Edited teammate" && edited.attributes.title === "Manual title" && edited.attributes.tags?.length === 1 && !!edited.dossier?.includes("Updated notes"));
+  let rejected = false;
+  try { await manageEntity(ws.id, { action: "merge", id: custom.id, targetId: custom.id }); } catch { rejected = true; }
+  check("self merge is rejected without losing entity", rejected && (await loadGraph(ws.id)).nodes.has(custom.id));
+  const foreign = (await one<{ id: string }>(`INSERT INTO workspaces (slug, name) VALUES ('other', 'Other') RETURNING id`))!;
+  rejected = false;
+  try { await manageEntity(foreign.id, { action: "delete", id: custom.id }); } catch { rejected = true; }
+  check("mutations cannot cross workspace boundaries", rejected && (await loadGraph(ws.id)).nodes.has(custom.id));
+  const claimsBefore = (await one<{ n: number }>(`SELECT count(*)::int AS n FROM claims`))!.n;
+  await manageEntity(ws.id, { action: "delete", id: custom.id });
+  await projectGraph(ws.id);
+  const deletedGraph = await loadGraph(ws.id);
+  const pointer = await one<{ self_entity_id: string | null }>(`SELECT self_entity_id FROM workspaces WHERE id = $1`, [ws.id]);
+  check("deletion survives projection and removes routes and self pointer", !deletedGraph.nodes.has(custom.id) && deletedGraph.edges.every(e => e.src_entity_id !== custom.id && e.dst_entity_id !== custom.id) && pointer?.self_entity_id === null);
+  check("deletion retains source evidence", (await one<{ n: number }>(`SELECT count(*)::int AS n FROM claims`))!.n === claimsBefore);
 
   console.log(
     failures === 0

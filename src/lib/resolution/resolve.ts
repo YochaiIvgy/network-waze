@@ -411,8 +411,8 @@ async function absorbMention(c: ClientLike, entityId: string, mention: MentionRo
   const attrs = stripNulls(mention.attributes as Record<string, unknown>);
   await c.query(
     `UPDATE entities
-     SET attributes = attributes || $2::jsonb,
-         canonical_name = CASE WHEN length($3) > length(canonical_name) THEN $3 ELSE canonical_name END,
+     SET attributes = attributes || $2::jsonb || COALESCE(attributes->'manual_profile', '{}'::jsonb),
+         canonical_name = CASE WHEN attributes ? 'manual_profile' THEN canonical_name WHEN length($3) > length(canonical_name) THEN $3 ELSE canonical_name END,
          updated_at = now()
      WHERE id = $1`,
     [entityId, JSON.stringify(attrs), mention.surface_form],

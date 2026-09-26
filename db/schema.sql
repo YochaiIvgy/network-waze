@@ -7,8 +7,8 @@
 --   L3 edges/edge_evidence/metrics      graph projection (rebuildable)
 --   L5 search_queries                   query log
 --
--- Everything from L2 down is derived. `npm run reproject` truncates it and
--- rebuilds from L1. Never hand-edit those tables.
+-- L2 also holds user curation (manual_profile overrides, merges, deletion).
+-- Default reproject preserves L2 and rebuilds graph projections from L1 + L2.
 
 -- gen_random_uuid() is in core Postgres since 13; no extension required.
 
