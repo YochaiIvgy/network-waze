@@ -4,12 +4,13 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Network, Users, Building2, Route, AudioLines, Search, Plus, ArrowUpRight, ArrowRight,
   ChevronDown, Sun, Moon, SlidersHorizontal, X, Sparkles, Check, Link2, Settings2,
-  GitMerge, CircleHelp, Gauge, Quote as QuoteIcon,
+  GitMerge, CircleHelp, Gauge, Quote as QuoteIcon, Infinity as LoopIcon,
 } from "lucide-react";
 import { EntityManager } from "@/components/EntityManager";
 import { AISettings } from "@/components/AISettings";
 import { NetworkSearch } from "@/components/NetworkSearch";
 import { NetworkCanvas } from "@/components/NetworkCanvas";
+import { LoopsBoard } from "@/components/LoopsBoard";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import type { ViewEdge, ViewEntity, ViewGraph } from "@/lib/view-model";
@@ -24,6 +25,7 @@ const NAV = {
   Meetings: AudioLines,
   "Entity review": GitMerge,
   Settings: Settings2,
+  Loops: LoopIcon,
 } as const;
 
 type ViewName = keyof typeof NAV;
@@ -74,6 +76,7 @@ const pct = (n: number) => `${Math.round(n * 100)}%`;
 export default function Home() {
   const [g, setG] = useState<ViewGraph>(EMPTY);
   const [view, setView] = useState<ViewName>("Network");
+  const [networkExpanded, setNetworkExpanded] = useState(true);
   const [detailOpen, setDetailOpen] = useState(false);
   const [selected, setSelected] = useState("");
   const [q, setQ] = useState("");
@@ -143,7 +146,10 @@ export default function Home() {
     const p = new URLSearchParams(location.search);
     // Views are deep-linkable, so a particular screen can be shared or bookmarked.
     const requested = p.get("view");
-    if (requested && Object.hasOwn(NAV, requested)) setView(requested as ViewName);
+    if (requested && Object.hasOwn(NAV, requested)) {
+      setView(requested as ViewName);
+      setNetworkExpanded(requested !== "Loops" && requested !== "Settings");
+    }
     if (p.has("connected")) {
       setView("Meetings");
       setNotice("Granola connected. Extract a meeting to add it to your network.");
@@ -226,6 +232,7 @@ export default function Home() {
     const restoreView = () => {
       const requested = new URLSearchParams(location.search).get("view");
       setView(requested && Object.hasOwn(NAV, requested) ? requested as ViewName : "Network");
+      setNetworkExpanded(requested !== "Loops" && requested !== "Settings");
       setQ("");
       setFilter("All entities");
       setDetailOpen(false);
@@ -236,6 +243,7 @@ export default function Home() {
 
   function nav(v: ViewName) {
     setView(v);
+    if (v !== "Loops" && v !== "Settings") setNetworkExpanded(true);
     setDetailOpen(false);
     if (v === "People" || v === "Organizations") {
       const type = v === "People" ? "person" : "organization";
@@ -292,16 +300,18 @@ export default function Home() {
         </div>
         <div className="nav-label">WORKSPACE</div>
         <nav>
-          {(Object.entries(NAV) as Array<[ViewName, typeof Network]>).map(([name, Icon]) => (
-            <button key={name} aria-label={name} aria-current={view === name ? "page" : undefined} className={`nav-item ${view === name ? "active" : ""}`} onClick={() => nav(name)}>
+          <button className={`nav-item nav-section ${view !== "Loops" && view !== "Settings" ? "section-selected" : ""}`} aria-label="Network section" aria-expanded={networkExpanded} onClick={() => setNetworkExpanded(!networkExpanded)}><Network size={18} /><span>Network</span><ChevronDown size={14} className={networkExpanded ? "" : "collapsed"} /></button>
+          {networkExpanded && <div className="network-subnav">{(Object.entries(NAV) as Array<[ViewName, typeof Network]>).filter(([name]) => name !== "Settings" && name !== "Loops").map(([name, Icon]) => (
+            <button key={name} aria-label={name === "Network" ? "Network map" : name} title={name === "Network" ? "Map" : name} aria-current={view === name ? "page" : undefined} className={`nav-item ${view === name ? "active" : ""}`} onClick={() => nav(name)}>
               <Icon size={18} />
-              <span>{name}</span>
+              <span>{name === "Network" ? "Map" : name}</span>
               {name === "Entity review" && g.reviews.length > 0 && <b>{g.reviews.length}</b>}
             </button>
-          ))}
+          ))}</div>}
+          <button className={`nav-item nav-section ${view === "Loops" ? "active" : ""}`} aria-label="Loops" aria-current={view === "Loops" ? "page" : undefined} onClick={() => { nav("Loops"); setNetworkExpanded(false); }}><LoopIcon size={18} /><span>Loops</span></button>
         </nav>
         <div className="sidebar-bottom">
-          <div className="source-card">
+          {view !== "Loops" && <div className="source-card">
             <AudioLines className="granola-mark" size={25} />
             <strong>
               Your conversations,
@@ -313,8 +323,8 @@ export default function Home() {
               {connected ? "Browse Granola" : "Connect Granola"}
               <ArrowUpRight size={15} />
             </button>
-          </div>
-          <button className="nav-item" onClick={() => nav("Settings")}>
+          </div>}
+          <button className={`nav-item ${view === "Settings" ? "active" : ""}`} aria-current={view === "Settings" ? "page" : undefined} onClick={() => nav("Settings")}>
             <Settings2 size={18} />
             Settings &amp; integrations
           </button>
@@ -334,10 +344,10 @@ export default function Home() {
       <div className="main-shell">
         <header className="topbar">
           <div className="breadcrumb">
-            <Network size={17} />
+            {view === "Loops" ? <LoopIcon size={17} /> : <Network size={17} />}
             <span>Workspace</span>
             <span>/</span>
-            <strong>{view}</strong>
+            <strong>{view === "Network" ? "Network / Map" : view === "Loops" || view === "Settings" ? view : `Network / ${view}`}</strong>
           </div>
           <div className="top-actions">
             <i className="green-dot" />
@@ -348,9 +358,10 @@ export default function Home() {
           </div>
         </header>
 
-        <main className={view === "Network" ? "network-page" : "standalone-page"}>
+        <main className={view === "Network" ? "network-page" : view === "Loops" ? "loops-page" : "standalone-page"}>
+          <div hidden={view !== "Loops"}><LoopsBoard entities={g.entities} refreshPeople={load} /></div>
           {view === "Settings" && <AISettings onSaved={() => { void load(); }} onIntegrations={() => setModal("settings")} />}
-          {view !== "Network" && view !== "Settings" && <div className="page-heading">
+          {view !== "Network" && view !== "Settings" && view !== "Loops" && <div className="page-heading">
             <div>
               <div className="eyebrow">RELATIONSHIPS, WITH EVIDENCE</div>
               <h1>{view === "Overview" ? "Your workspace, connected." : view}</h1>
@@ -1139,7 +1150,7 @@ export default function Home() {
             </section>
           )}
 
-          <footer className="page-footer">
+          <footer className="page-footer" hidden={view === "Loops"}>
             <span>
               <Link2 size={13} />
               Built from conversations. Every edge cites a quote.

@@ -1,0 +1,16 @@
+.styled-select{display:inline-flex;align-items:center;gap:8px;min-width:0;width:100%;border:1px solid var(--border);border-radius:7px;background:var(--background);padding:8px 10px;font-size:12px;line-height:1.5;color:var(--foreground);text-align:left;cursor:pointer;transition:border-color .15s,background .15s,box-shadow .15s}
+.styled-select:hover,.styled-select[data-popup-open]{border-color:color-mix(in srgb,var(--foreground) 23%,var(--border));background:var(--subtle)}
+.styled-select:focus-visible{outline:2px solid color-mix(in srgb,var(--primary) 55%,transparent);outline-offset:2px}
+.styled-select>span:not(.select-dot):not(.select-chevron){overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.styled-select.select-compact{width:auto;max-width:180px;padding:3px 6px;border-color:transparent;background:transparent;border-radius:5px;font-size:11px;gap:6px}
+.styled-select.select-compact:hover,.styled-select.select-compact[data-popup-open]{background:var(--subtle);border-color:var(--border)}
+.select-chevron{display:flex;margin-left:auto;color:var(--muted);transition:transform .15s}.styled-select[data-popup-open] .select-chevron{transform:rotate(180deg)}
+.select-dot{display:inline-block;flex-shrink:0;width:6px;height:6px;border-radius:50%}
+.select-positioner{z-index:100;outline:none}
+.select-popup{min-width:max(170px,var(--anchor-width));max-width:min(320px,calc(100vw - 24px));border:1px solid var(--border);border-radius:10px;background:var(--background);color:var(--foreground);box-shadow:0 8px 28px #00000016,0 2px 5px #00000008;transform-origin:var(--transform-origin);transition:opacity .12s,transform .12s}
+.select-popup[data-starting-style],.select-popup[data-ending-style]{opacity:0;transform:translateY(-3px)}
+.select-list{padding:5px;max-height:min(280px,var(--available-height));overflow-y:auto;outline:none}
+.select-option{display:flex;align-items:center;gap:9px;padding:9px 10px;min-height:35px;border-radius:6px;cursor:pointer;outline:none;font-size:12px;line-height:1.4;user-select:none}
+.select-option[data-highlighted]{background:var(--subtle)}.select-option[data-selected]{font-weight:550}
+.select-check{display:flex;margin-left:auto;color:var(--green)}
+@media(prefers-reduced-motion:reduce){.select-popup,.select-chevron{transition:none}}
