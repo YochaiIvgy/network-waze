@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type CSSProperties, type DragEvent } from "react";
-import { ArrowUp, Check, ChevronDown, GripVertical, Plus, X } from "lucide-react";
+import { ArrowUp, Check, ChevronDown, GripVertical, Plus, Sparkles, X } from "lucide-react";
 import { PersonPicker } from "./LoopPersonPicker";
 import { StyledSelect } from "./ui/select";
 import { LOOP_STATES, PATH_COLORS, captureLoops, completeNext, loopsSchema, moveItem, needsMyMove, ownerName, recordLoop, planSteps, toggleStep, type LoopItem, type LoopPath } from "@/lib/loops";
@@ -32,7 +32,7 @@ export function LoopsBoard({ entities, refreshPeople }: { entities: ViewEntity[]
   const [drag, setDrag] = useState<Drag | null>(null);
   const [over, setOver] = useState("");
   const [feedback, setFeedback] = useState<{ text: string; undoId?: string } | null>(null);
-  const people = entities.filter(e => e.type === "person");
+  const [showDone, setShowDone] = useState<Record<string, boolean>>({});  const people = entities.filter(e => e.type === "person");
 
   function keepDraft(board: LoopPath[]) {
     try { localStorage.setItem(journal.current, JSON.stringify({ revision: revision.current, paths: board })); setBackupError(""); }
@@ -151,24 +151,50 @@ export function LoopsBoard({ entities, refreshPeople }: { entities: ViewEntity[]
       {paths?.map((path, index) => <section key={path.id} className={`loop-path ${over === path.id ? "drop-target" : ""}`} style={{ "--path-color": path.color } as CSSProperties} onDragOver={e => { if (drag) { e.preventDefault(); setOver(path.id); } }} onDrop={e => drop(e, path.id)}>
         <header className="loop-path-header"><button className="loop-grip" draggable onDragStart={e => startDrag(e, { type: "path", id: path.id })} onDragEnd={() => { setDrag(null); setOver(""); }} aria-label={`Drag ${path.name} path`}><GripVertical size={16} /></button><InlineText value={path.name} label={`Path name: ${path.name}`} maxLength={100} required onSave={name => updatePath(path.id, { name })} /><span>{path.items.filter(i => !i.resolved).length}</span><details className="loop-path-menu"><summary aria-label={`Options for ${path.name}`}><ChevronDown size={15} /></summary><div><small>Path color</small><div className="loop-swatches">{PATH_COLORS.map((color, i) => <button key={color} aria-label={`Color ${["violet", "green", "amber", "rose", "blue", "lilac"][i]}`} aria-pressed={path.color === color} style={{ background: color }} onClick={() => updatePath(path.id, { color })}>{path.color === color && <Check size={13} />}</button>)}</div><button disabled={index === 0} onClick={() => reorderPath(path.id, index - 1)}>Move path left</button><button disabled={index === paths.length - 1} onClick={() => reorderPath(path.id, index + 1)}>Move path right</button>{paths.length > 1 && path.items.length === 0 && <button onClick={() => { const next = latest.current!.filter(p => p.id !== path.id); if (commit(next) && capturePath === path.id) setCapturePath(next[0].id); }}>Remove empty path</button>}</div></details></header>
         <div className="loop-path-items">
-          {path.items.filter(matches).map(item => <div key={item.id} className={over === item.id ? "drop-before" : ""} onDragOver={e => { if (drag?.type === "item") { e.preventDefault(); e.stopPropagation(); setOver(item.id); } }} onDrop={e => drop(e, path.id, item.id)}><LoopRow item={item} pathId={path.id} paths={paths} people={people} today={today} draftKey={`${draftPrefix}:${item.id}`} refreshPeople={refreshPeople} onChange={patch => changeItem(item.id, patch)} onLog={text => changeItem(item.id, {}, text)} onStep={() => checkStep(item.id)} onResolve={() => resolve(item.id, !item.resolved)} onMove={destination => commit(moveItem(latest.current!, item.id, destination))} onDragStart={e => startDrag(e, { type: "item", id: item.id })} onDragEnd={() => { setDrag(null); setOver(""); }} /></div>)}
+          {(() => { const shown = path.items.filter(matches); const folded = foldedDone(shown); return <>
+          {folded.size > 0 && <div className="loop-earlier-done"><button aria-expanded={!!showDone[path.id]} onClick={() => setShowDone(v => ({ ...v, [path.id]: !v[path.id] }))}><ChevronDown size={11} />{showDone[path.id] ? "Hide earlier done" : `${folded.size} earlier done`}</button>{showDone[path.id] && shown.filter(item => folded.has(item.id)).map(item => <label key={item.id} className="loop-resolved-row"><input type="checkbox" checked aria-label={`Reopen ${item.title}`} title="Reopen this loop" onChange={() => resolve(item.id, false)} /><span>{item.title}</span></label>)}</div>}
+          {shown.filter(item => !folded.has(item.id)).map(item => <div key={item.id} className={over === item.id ? "drop-before" : ""} onDragOver={e => { if (drag?.type === "item") { e.preventDefault(); e.stopPropagation(); setOver(item.id); } }} onDrop={e => drop(e, path.id, item.id)}><LoopRow item={item} pathId={path.id} paths={paths} people={people} today={today} draftKey={`${draftPrefix}:${item.id}`} refreshPeople={refreshPeople} onChange={patch => changeItem(item.id, patch)} onLog={text => changeItem(item.id, {}, text)} onStep={() => checkStep(item.id)} onResolve={() => resolve(item.id, !item.resolved)} onMove={destination => commit(moveItem(latest.current!, item.id, destination))} onDragStart={e => startDrag(e, { type: "item", id: item.id })} onDragEnd={() => { setDrag(null); setOver(""); }} /></div>)}
+          </>; })()}
           {!path.items.some(matches) && <p className="loop-empty-line">{filter === "all" ? "Nothing on your mind here. Yet." : filter === "me" ? "Nothing needs your push here." : "Nothing waiting here."}</p>}
           <QuickCapture key={`${draftPrefix}:${path.id}`} draftKey={`${draftPrefix}:${path.id}`} placeholder="+ Add a loop…" onCapture={text => capture(text, path.id)} />
         </div>
       </section>)}
       {paths && <button className="loop-new-path" onClick={() => setAddingPath(true)}><Plus size={18} /><span>New path</span></button>}
     </div>
-    <p className="loops-hint">Checked loops and steps stay in place. Each loop’s trail is its next steps — check one and the next lights up.</p>
+    <p className="loops-hint">The last few checked loops stay in place; older ones fold into “earlier done”. Each loop’s trail is its next steps — check one and the next lights up.</p>
     {paths && <CaptureDock key={`${draftPrefix}:capture`} draftKey={`${draftPrefix}:capture`} paths={paths} pathId={capturePath} onPathChange={setCapturePath} onCapture={text => capture(text, capturePath)} />}
   </section>;
 }
 
+/** Checked loops beyond the most recent few fold away, oldest first. */
+function foldedDone(items: LoopItem[]) {
+  const resolvedAt = (item: LoopItem) => item.history.filter(h => h.event === "resolved").at(-1)?.at ?? "";
+  return new Set(items.filter(i => i.resolved).sort((a, b) => resolvedAt(b).localeCompare(resolvedAt(a))).slice(RECENT_DONE).map(i => i.id));
+}
+
+type DockMode = "capture" | "ask";
+
 function CaptureDock({ draftKey, paths, pathId, onPathChange, onCapture }: { draftKey: string; paths: LoopPath[]; pathId: string; onPathChange: (id: string) => void; onCapture: (text: string) => boolean }) {
   const [open, setOpen] = useState(false);
+  const [mode, setMode] = useState<DockMode>("capture");
+  const [scope, setScope] = useState("all");
+  const [asked, setAsked] = useState(false);
   const [text, setText] = useState(""); const [storageError, setStorageError] = useState(false);
   const container = useRef<HTMLDivElement>(null); const input = useRef<HTMLTextAreaElement>(null); const trigger = useRef<HTMLButtonElement>(null);
   useEffect(() => { try { setText(localStorage.getItem(`${draftKey}:input`) ?? ""); } catch { setStorageError(true); } }, [draftKey]);
-  useEffect(() => { if (open) input.current?.focus(); }, [open]);
+  useEffect(() => {
+    if (!open) return;
+    let frame = 0; let tries = 0;
+    // The composer can still be computed as hidden for a frame while it expands.
+    const focus = () => {
+      const el = input.current; if (!el) return;
+      el.focus({ preventScroll: true });
+      if (document.activeElement === el) el.setSelectionRange(el.value.length, el.value.length);
+      else if (tries++ < 20) frame = requestAnimationFrame(focus);
+    };
+    focus();
+    return () => cancelAnimationFrame(frame);
+  }, [open]);
   useEffect(() => {
     if (!open) return;
     const dismiss = (event: PointerEvent) => {
@@ -179,16 +205,38 @@ function CaptureDock({ draftKey, paths, pathId, onPathChange, onCapture }: { dra
     return () => document.removeEventListener("pointerdown", dismiss, true);
   }, [open]);
   function change(value: string) { setText(value); try { if (value) localStorage.setItem(`${draftKey}:input`, value); else localStorage.removeItem(`${draftKey}:input`); } catch { setStorageError(true); } }
-  function submit() { if (text.trim() && onCapture(text)) { change(""); input.current?.focus(); } }
-  function close() { setOpen(false); trigger.current?.focus(); }
+  function submit() {
+    if (!text.trim()) return;
+    if (mode === "ask") { setAsked(true); return; }
+    if (onCapture(text)) { change(""); input.current?.focus(); }
+  }
+  function switchMode(next: DockMode) { setMode(next); setAsked(false); input.current?.focus(); }
+  function close() { setOpen(false); if (mode === "ask" && !text.trim()) setMode("capture"); trigger.current?.focus(); }
   const draft = text.trim().split(/\r?\n/)[0];
-  return <div ref={container} className={`network-search loops-capture-dock ${open ? "is-open" : ""}`} onKeyDown={e => { if (e.key === "Escape" && !(e.target instanceof Element && e.target.closest(".select-positioner"))) { e.stopPropagation(); close(); } }}>
+  const looksLikeQuestion = mode === "capture" && !text.trim().includes("\n") && (/\?\s*$/.test(text) || /^(who|what|when|where|why|how|which)\b/i.test(text.trim()));
+  const hint = storageError ? "Draft backup unavailable. Capture this before leaving."
+    : asked ? "Asking your loops is coming soon. Your question stays here."
+    : looksLikeQuestion ? "Looks like a question — Ask instead? Ctrl+/"
+    : mode === "ask" ? "Ask about what’s open, waiting or stuck" : "Enter to add · Shift+Enter for a new line";
+  return <div ref={container} className={`network-search loops-capture-dock ${open ? "is-open" : ""}`} onKeyDown={e => {
+    if ((e.ctrlKey || e.metaKey) && e.key === "/") { e.preventDefault(); switchMode(mode === "capture" ? "ask" : "capture"); }
+    else if (e.key === "Escape" && !(e.target instanceof Element && e.target.closest(".select-positioner"))) { e.stopPropagation(); close(); }
+  }}>
     <button ref={trigger} className="search-launcher" aria-expanded={open} aria-controls="loops-composer" onClick={() => setOpen(true)} tabIndex={open ? -1 : 0} aria-hidden={open}>
-      <Plus size={16} /><span className="dock-label">{draft ? draft : "What’s on your mind?"}</span><kbd>{draft ? "Draft" : "Capture"}</kbd>
+      {mode === "ask" ? <Sparkles size={16} /> : <Plus size={16} />}<span className="dock-label">{draft || (mode === "ask" ? "Ask your loops" : "What’s on your mind?")}</span><kbd>{draft ? "Draft" : mode === "ask" ? "Ask" : "Capture"}</kbd>
     </button>
-    <form id="loops-composer" className="network-composer" inert={!open} aria-label="Quick capture loops" onSubmit={e => { e.preventDefault(); submit(); }}>
-      <textarea ref={input} rows={2} aria-label="Quick capture loops" placeholder="What’s on your mind? Paste a list to capture several…" value={text} onChange={e => change(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); submit(); } }} />
-      <div className="composer-bottom"><div className="loops-capture-destination"><span>Into</span><StyledSelect label="Capture into path" value={pathId} onChange={onPathChange} compact options={paths.map(p => ({ value: p.id, label: p.name, color: p.color }))} /><small role={storageError ? "alert" : undefined}>{storageError ? "Draft backup unavailable. Capture this before leaving." : "Enter to add · Shift+Enter for a new line"}</small></div><button className="composer-send" type="submit" disabled={!text.trim()} aria-label="Capture loops"><ArrowUp size={18} /></button></div>
+    <form id="loops-composer" className="network-composer" inert={!open} aria-label={mode === "ask" ? "Ask your loops" : "Quick capture loops"} onSubmit={e => { e.preventDefault(); submit(); }}>
+      <textarea ref={input} rows={2} aria-label={mode === "ask" ? "Ask a question about your loops" : "Quick capture loops"} placeholder={mode === "ask" ? "What’s waiting on Roy?" : "What’s on your mind? Paste a list to capture several…"} value={text} onChange={e => { change(e.target.value); setAsked(false); }} onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); submit(); } }} />
+      <div className="composer-bottom">
+        <div className="loops-capture-destination">
+          <div className="dock-modes" role="group" aria-label="Composer mode">{(["capture", "ask"] as const).map(m => <button key={m} type="button" aria-pressed={mode === m} onClick={() => switchMode(m)}>{m === "ask" ? <Sparkles size={11} /> : <Plus size={11} />}{m === "ask" ? "Ask" : "Capture"}</button>)}</div>
+          {mode === "capture"
+            ? <><span>Into</span><StyledSelect label="Capture into path" value={pathId} onChange={onPathChange} compact options={paths.map(p => ({ value: p.id, label: p.name, color: p.color }))} /></>
+            : <StyledSelect label="Ask across" value={scope} onChange={setScope} compact options={[{ value: "all", label: "All paths" }, { value: "me", label: "Needs me" }, ...paths.map(p => ({ value: p.id, label: p.name, color: p.color }))]} />}
+          <small role={storageError || asked ? "status" : undefined}>{hint}</small>
+        </div>
+        <button className="composer-send" type="submit" disabled={!text.trim()} aria-label={mode === "ask" ? "Ask your loops" : "Capture loops"}><ArrowUp size={18} /></button>
+      </div>
     </form>
   </div>;
 }
@@ -220,20 +268,25 @@ function LoopRow({ item, pathId, paths, people, today, draftKey, refreshPeople, 
   </article>;
 }
 
+const RECENT_DONE = 3;
 const formatWhen = (at: string) => new Date(at).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
 
 function Trail({ item, draftKey, onChange, onStep }: { item: LoopItem; draftKey: string; onChange: (patch: Partial<LoopItem>) => boolean; onStep: () => void }) {
   const [showEarlier, setShowEarlier] = useState(false);
   const moves = item.history.filter(h => h.event === "move");
-  const shownMoves = showEarlier ? moves : moves.slice(-1);
   const steps = item.steps ?? [];
-  const currentId = item.next ? "next" : steps.find(s => !s.done)?.id;
+  type Step = (typeof steps)[number];
+  const done = [...moves.map(h => ({ at: h.at, move: h, step: undefined as Step | undefined })), ...steps.filter(s => s.done).map(s => ({ at: s.completedAt ?? "", move: undefined, step: s }))].sort((a, b) => a.at.localeCompare(b.at));
+  const earlier = Math.max(0, done.length - RECENT_DONE);
+  const open = steps.filter(s => !s.done);
+  const currentId = item.next ? "next" : open[0]?.id;
+  const stepRow = (step: Step) => <li key={step.id} className={`trail-step ${step.done ? "trail-done" : ""} ${step.id === currentId ? "trail-current" : ""}`}><span className="loop-trail-mark"><input type="checkbox" checked={step.done} aria-label={`${step.done ? "Uncheck" : "Check"} step: ${step.text}`} title={step.completedAt ? `Done ${formatWhen(step.completedAt)}` : "Check this step; the loop stays open"} onChange={e => onChange({ steps: toggleStep(item, step.id, e.target.checked).steps })} /></span><div><InlineText value={step.text} label={`Edit step: ${step.text}`} maxLength={2000} required onSave={text => onChange({ steps: steps.map(s => s.id === step.id ? { ...s, text } : s) })} /></div></li>;
   if (!moves.length && !item.next && !steps.length && item.resolved) return null;
   return <ol className="loop-trail connected-trail loop-step-trail">
-    {moves.length > 1 && <li className="trail-earlier"><span className="loop-trail-mark"><span className="trail-node" /></span><button onClick={() => setShowEarlier(v => !v)}>{showEarlier ? "Hide earlier steps" : `${moves.length - 1} earlier ${moves.length === 2 ? "step" : "steps"}`}</button></li>}
-    {shownMoves.map(h => <li key={h.id} className="trail-step trail-done"><span className="loop-trail-mark"><input type="checkbox" checked readOnly disabled aria-label={`Done: ${h.text}`} /></span><div><p title={formatWhen(h.at)}>{h.text}</p></div></li>)}
+    {earlier > 0 && <li className="trail-earlier"><span className="loop-trail-mark"><span className="trail-node" /></span><button onClick={() => setShowEarlier(v => !v)}>{showEarlier ? "Hide earlier steps" : `${earlier} earlier ${earlier === 1 ? "step" : "steps"}`}</button></li>}
+    {(showEarlier ? done : done.slice(earlier)).map(({ move, step }) => step ? stepRow(step) : <li key={move!.id} className="trail-step trail-done"><span className="loop-trail-mark"><input type="checkbox" checked readOnly disabled aria-label={`Done: ${move!.text}`} /></span><div><p title={formatWhen(move!.at)}>{move!.text}</p></div></li>)}
     {item.next && <li className="trail-step trail-current"><span className="loop-trail-mark"><input type="checkbox" checked={false} disabled={item.resolved} aria-label={`Check step: ${item.next}`} title="Check this step; the loop stays open" onChange={onStep} /></span><div><InlineText value={item.next} label={`Edit step: ${item.next}`} maxLength={2000} onSave={next => onChange({ next })} /></div></li>}
-    {steps.map(step => <li key={step.id} className={`trail-step ${step.done ? "trail-done" : ""} ${step.id === currentId ? "trail-current" : ""}`}><span className="loop-trail-mark"><input type="checkbox" checked={step.done} aria-label={`${step.done ? "Uncheck" : "Check"} step: ${step.text}`} title={step.completedAt ? `Done ${formatWhen(step.completedAt)}` : "Check this step; the loop stays open"} onChange={e => onChange({ steps: toggleStep(item, step.id, e.target.checked).steps })} /></span><div><InlineText value={step.text} label={`Edit step: ${step.text}`} maxLength={2000} required onSave={text => onChange({ steps: steps.map(s => s.id === step.id ? { ...s, text } : s) })} /></div></li>)}
+    {open.map(stepRow)}
     {!item.resolved && <li className="trail-add"><span className="loop-trail-mark"><Plus size={11} /></span><QuickCapture draftKey={draftKey} placeholder={currentId ? "Then…" : "Next step…"} label={`Add a step to ${item.title}`} onCapture={text => onChange({ steps: planSteps(item, text).steps })} /></li>}
   </ol>;
 }
