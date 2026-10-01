@@ -105,8 +105,8 @@
 .compact-loops .loops-filters button { border-radius: 0; padding: 8px 0; color: var(--loop-secondary); }
 .compact-loops .loops-filters button[aria-pressed=true] { border-color: transparent; border-bottom-color: var(--foreground); }
 .compact-loops .loops-board { gap: 32px; scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
-/* The board scrolls horizontally, so edge controls need gutter room inside it; snapping must respect that gutter. */
-.compact-loops .loops-board { padding-inline: 12px; margin-inline: -12px; scroll-padding-inline: 12px; }
+/* The board scrolls horizontally, so edge controls need gutter room inside it. */
+.compact-loops .loops-board { padding-inline: 12px; margin-inline: -12px; scroll-snap-type: none; overscroll-behavior-x: contain; }
 .compact-loops .loop-path { border: 0; border-radius: 0; box-shadow: none; }
 .compact-loops .loop-path.drop-target { box-shadow: 0 0 0 2px var(--path-color); border-radius: 8px; }
 .compact-loops .loop-path-header {
