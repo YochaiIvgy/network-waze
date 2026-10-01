@@ -1,10 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState, type CSSProperties, type DragEvent } from "react";
-import { ArrowUp, Check, ChevronDown, GripVertical, Plus, Sparkles, X } from "lucide-react";
+import { useEffect, useRef, useState, type CSSProperties, type DragEvent, type ReactNode } from "react";
+import { ArrowUp, Check, ChevronDown, GripVertical, Plus, Sparkles, Trash2, UserPlus, X } from "lucide-react";
 import { PersonPicker } from "./LoopPersonPicker";
 import { StyledSelect } from "./ui/select";
-import { LOOP_STATES, PATH_COLORS, captureLoops, completeNext, loopsSchema, moveItem, needsMyMove, ownerName, recordLoop, planSteps, toggleStep, type LoopItem, type LoopPath } from "@/lib/loops";
+import { Button } from "./ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "./ui/dialog";
+import { LOOP_STATES, PATH_COLORS, captureLoops, completeNext, loopsSchema, moveItem, needsMyMove, ownerName, recordLoop, planSteps, toggleStep, type LoopItem, type LoopPath, type LoopPerson } from "@/lib/loops";
 import type { ViewEntity } from "@/lib/view-model";
 
 type Drag = { type: "path" | "item"; id: string };
@@ -31,8 +33,9 @@ export function LoopsBoard({ entities, refreshPeople }: { entities: ViewEntity[]
   const [addingPath, setAddingPath] = useState(false);
   const [drag, setDrag] = useState<Drag | null>(null);
   const [over, setOver] = useState("");
-  const [feedback, setFeedback] = useState<{ text: string; undoId?: string } | null>(null);
-  const [showDone, setShowDone] = useState<Record<string, boolean>>({});  const people = entities.filter(e => e.type === "person");
+  const [feedback, setFeedback] = useState<{ text: string; undo?: () => void } | null>(null);
+  const [showDone, setShowDone] = useState<Record<string, boolean>>({});
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);  const people = entities.filter(e => e.type === "person");
 
   function keepDraft(board: LoopPath[]) {
     try { localStorage.setItem(journal.current, JSON.stringify({ revision: revision.current, paths: board })); setBackupError(""); }
@@ -75,7 +78,6 @@ export function LoopsBoard({ entities, refreshPeople }: { entities: ViewEntity[]
     window.addEventListener("beforeunload", guard);
     return () => { window.removeEventListener("beforeunload", guard); };
   }, []);
-
   async function flush() {
     if (saving.current || !latest.current) return;
     saving.current = true; setError(""); setStatus("Saving…");
@@ -107,14 +109,27 @@ export function LoopsBoard({ entities, refreshPeople }: { entities: ViewEntity[]
     const next = [...latest.current!]; const from = next.findIndex(p => p.id === id); if (from < 0) return;
     const [path] = next.splice(from, 1); next.splice(index, 0, path); commit(next);
   }
+  function deletePath(id: string, confirmed = false) {
+    const board = latest.current!; const index = board.findIndex(p => p.id === id); const path = board[index];
+    if (!path || board.length < 2) return;
+    if (path.items.length && !confirmed) { setConfirmDelete(id); return; }
+    setConfirmDelete(null);
+    const next = board.filter(p => p.id !== id);
+    if (!commit(next)) return;
+    if (capturePath === id) setCapturePath(next[0].id);
+    setFeedback({ text: `Deleted “${path.name}”.`, undo: () => { const restored = [...latest.current!]; restored.splice(Math.min(index, restored.length), 0, path); commit(restored); } });
+  }
   function changeItem(id: string, patch: Partial<LoopItem>, move = "") {
     return commit(latest.current!.map(p => ({ ...p, items: p.items.map(item => item.id === id ? recordLoop({ ...item, ...patch }, item, move, people) : item) })));
   }
   function checkStep(id: string) {
     if (commit(latest.current!.map(p => ({ ...p, items: p.items.map(item => item.id === id ? completeNext(item, people) : item) })))) setFeedback({ text: "Step checked — the loop stays open." });
   }
+  function removeStep(id: string, stepId: string) {
+    commit(latest.current!.map(p => ({ ...p, items: p.items.map(item => item.id !== id ? item : stepId === "next" ? { ...item, next: "" } : { ...item, steps: (item.steps ?? []).filter(s => s.id !== stepId), history: item.history.filter(h => h.event !== "move" || h.id !== stepId) }) })));
+  }
   function resolve(id: string, resolved: boolean) {
-    if (changeItem(id, { resolved })) setFeedback({ text: resolved ? "Checked. This loop stays right here." : "Loop reopened.", undoId: resolved ? id : undefined });
+    if (changeItem(id, { resolved })) setFeedback({ text: resolved ? "Checked. This loop stays right here." : "Loop reopened.", undo: resolved ? () => resolve(id, false) : undefined });
   }
   function capture(text: string, pathId: string) {
     const items = captureLoops(text); if (!items.length || !latest.current?.some(p => p.id === pathId)) return false;
@@ -145,15 +160,15 @@ export function LoopsBoard({ entities, refreshPeople }: { entities: ViewEntity[]
     <div className="loops-toolbar"><div className="loops-filters">{([ ["all", "Everything", openItems.length], ["me", "Needs me", mine], ["waiting", "Waiting", openItems.filter(i => i.state === "waiting").length] ] as const).map(([id, label, count]) => <button key={id} aria-pressed={filter === id} onClick={() => setFilter(id)}>{label}<span>{count}</span></button>)}</div><span role="status">{status}</span></div>
     {filter === "me" && <p className="loops-filter-note">Your next moves, plus loops due for review.</p>}
     {(error || backupError) && <div className="loops-error" role="alert">{error || backupError}<button onClick={() => void (paths ? flush() : load())}>Retry</button>{conflict && <button onClick={exportAndReload}>Keep a copy &amp; refresh</button>}</div>}
-    {feedback && <div className="loops-feedback" role="status"><Check size={14} />{feedback.text}{feedback.undoId && <button onClick={() => resolve(feedback.undoId!, false)}>Undo</button>}<button className="feedback-dismiss" aria-label="Dismiss update" onClick={() => setFeedback(null)}><X size={13} /></button></div>}
+    {feedback && <div className="loops-feedback" role="status"><Check size={14} />{feedback.text}{feedback.undo && <button onClick={() => { feedback.undo!(); setFeedback(null); }}>Undo</button>}<button className="feedback-dismiss" aria-label="Dismiss update" onClick={() => setFeedback(null)}><X size={13} /></button></div>}
     {addingPath && <form className="loops-new-path-inline" onSubmit={e => { e.preventDefault(); if (!pathName.trim() || !latest.current) return; if (commit([...latest.current, { id: crypto.randomUUID(), name: pathName.trim(), color: PATH_COLORS[latest.current.length % PATH_COLORS.length], items: [] }])) { setPathName(""); setAddingPath(false); } }}><input autoFocus aria-label="New path name" placeholder="Name a path…" maxLength={100} value={pathName} onChange={e => setPathName(e.target.value)} /><button type="submit" disabled={!pathName.trim()}>Add path</button><button type="button" onClick={() => setAddingPath(false)}>Cancel</button></form>}
     <div className="loops-board">
       {paths?.map((path, index) => <section key={path.id} className={`loop-path ${over === path.id ? "drop-target" : ""}`} style={{ "--path-color": path.color } as CSSProperties} onDragOver={e => { if (drag) { e.preventDefault(); setOver(path.id); } }} onDrop={e => drop(e, path.id)}>
-        <header className="loop-path-header"><button className="loop-grip" draggable onDragStart={e => startDrag(e, { type: "path", id: path.id })} onDragEnd={() => { setDrag(null); setOver(""); }} aria-label={`Drag ${path.name} path`}><GripVertical size={16} /></button><InlineText value={path.name} label={`Path name: ${path.name}`} maxLength={100} required onSave={name => updatePath(path.id, { name })} /><span>{path.items.filter(i => !i.resolved).length}</span><details className="loop-path-menu"><summary aria-label={`Options for ${path.name}`}><ChevronDown size={15} /></summary><div><small>Path color</small><div className="loop-swatches">{PATH_COLORS.map((color, i) => <button key={color} aria-label={`Color ${["violet", "green", "amber", "rose", "blue", "lilac"][i]}`} aria-pressed={path.color === color} style={{ background: color }} onClick={() => updatePath(path.id, { color })}>{path.color === color && <Check size={13} />}</button>)}</div><button disabled={index === 0} onClick={() => reorderPath(path.id, index - 1)}>Move path left</button><button disabled={index === paths.length - 1} onClick={() => reorderPath(path.id, index + 1)}>Move path right</button>{paths.length > 1 && path.items.length === 0 && <button onClick={() => { const next = latest.current!.filter(p => p.id !== path.id); if (commit(next) && capturePath === path.id) setCapturePath(next[0].id); }}>Remove empty path</button>}</div></details></header>
+        <header className="loop-path-header"><button className="loop-grip" draggable onDragStart={e => startDrag(e, { type: "path", id: path.id })} onDragEnd={() => { setDrag(null); setOver(""); }} aria-label={`Drag ${path.name} path`}><GripVertical size={16} /></button><InlineText value={path.name} label={`Path name: ${path.name}`} maxLength={100} required onSave={name => updatePath(path.id, { name })} /><span>{path.items.filter(i => !i.resolved).length}</span><Menu className="loop-path-menu"><summary aria-label={`Options for ${path.name}`}><ChevronDown size={15} /></summary><div><small>Path color</small><div className="loop-swatches">{PATH_COLORS.map((color, i) => <button key={color} aria-label={`Color ${["violet", "green", "amber", "rose", "blue", "lilac"][i]}`} aria-pressed={path.color === color} style={{ background: color }} onClick={() => updatePath(path.id, { color })}>{path.color === color && <Check size={13} />}</button>)}</div><button disabled={index === 0} onClick={() => reorderPath(path.id, index - 1)}>Move path left</button><button disabled={index === paths.length - 1} onClick={() => reorderPath(path.id, index + 1)}>Move path right</button>{paths.length > 1 && <button className="loop-path-delete" onClick={e => { e.currentTarget.closest("details")?.removeAttribute("open"); deletePath(path.id); }}>Delete path</button>}</div></Menu></header>
         <div className="loop-path-items">
           {(() => { const shown = path.items.filter(matches); const folded = foldedDone(shown); return <>
           {folded.size > 0 && <div className="loop-earlier-done"><button aria-expanded={!!showDone[path.id]} onClick={() => setShowDone(v => ({ ...v, [path.id]: !v[path.id] }))}><ChevronDown size={11} />{showDone[path.id] ? "Hide earlier done" : `${folded.size} earlier done`}</button>{showDone[path.id] && shown.filter(item => folded.has(item.id)).map(item => <label key={item.id} className="loop-resolved-row"><input type="checkbox" checked aria-label={`Reopen ${item.title}`} title="Reopen this loop" onChange={() => resolve(item.id, false)} /><span>{item.title}</span></label>)}</div>}
-          {shown.filter(item => !folded.has(item.id)).map(item => <div key={item.id} className={over === item.id ? "drop-before" : ""} onDragOver={e => { if (drag?.type === "item") { e.preventDefault(); e.stopPropagation(); setOver(item.id); } }} onDrop={e => drop(e, path.id, item.id)}><LoopRow item={item} pathId={path.id} paths={paths} people={people} today={today} draftKey={`${draftPrefix}:${item.id}`} refreshPeople={refreshPeople} onChange={patch => changeItem(item.id, patch)} onLog={text => changeItem(item.id, {}, text)} onStep={() => checkStep(item.id)} onResolve={() => resolve(item.id, !item.resolved)} onMove={destination => commit(moveItem(latest.current!, item.id, destination))} onDragStart={e => startDrag(e, { type: "item", id: item.id })} onDragEnd={() => { setDrag(null); setOver(""); }} /></div>)}
+          {shown.filter(item => !folded.has(item.id)).map(item => <div key={item.id} className={over === item.id ? "drop-before" : ""} onDragOver={e => { if (drag?.type === "item") { e.preventDefault(); e.stopPropagation(); setOver(item.id); } }} onDrop={e => drop(e, path.id, item.id)}><LoopRow item={item} pathId={path.id} paths={paths} people={people} today={today} draftKey={`${draftPrefix}:${item.id}`} refreshPeople={refreshPeople} onChange={patch => changeItem(item.id, patch)} onLog={text => changeItem(item.id, {}, text)} onStep={() => checkStep(item.id)} onRemoveStep={stepId => removeStep(item.id, stepId)} onResolve={() => resolve(item.id, !item.resolved)} onMove={destination => commit(moveItem(latest.current!, item.id, destination))} onDragStart={e => startDrag(e, { type: "item", id: item.id })} onDragEnd={() => { setDrag(null); setOver(""); }} /></div>)}
           </>; })()}
           {!path.items.some(matches) && <p className="loop-empty-line">{filter === "all" ? "Nothing on your mind here. Yet." : filter === "me" ? "Nothing needs your push here." : "Nothing waiting here."}</p>}
           <QuickCapture key={`${draftPrefix}:${path.id}`} draftKey={`${draftPrefix}:${path.id}`} placeholder="+ Add a loop…" captureOnBlur onCapture={text => capture(text, path.id)} />
@@ -163,6 +178,12 @@ export function LoopsBoard({ entities, refreshPeople }: { entities: ViewEntity[]
     </div>
     <p className="loops-hint">The last few checked loops stay in place; older ones fold into “earlier done”. Each loop’s trail is its next steps — check one and the next lights up.</p>
     {paths && <CaptureDock key={`${draftPrefix}:capture`} draftKey={`${draftPrefix}:capture`} paths={paths} pathId={capturePath} onPathChange={setCapturePath} onCapture={text => capture(text, capturePath)} />}
+    {(() => { const target = paths?.find(p => p.id === confirmDelete); const count = target?.items.length ?? 0; return <Dialog open={!!target} onOpenChange={open => { if (!open) setConfirmDelete(null); }}>
+      <DialogContent>
+        <DialogHeader><DialogTitle>Delete “{target?.name}”?</DialogTitle><DialogDescription>This path and its {count === 1 ? "loop" : `${count} loops`} will be removed. You can undo right after.</DialogDescription></DialogHeader>
+        <DialogFooter><Button variant="outline" onClick={() => setConfirmDelete(null)}>Cancel</Button><Button variant="destructive" autoFocus onClick={() => target && deletePath(target.id, true)}>Delete path</Button></DialogFooter>
+      </DialogContent>
+    </Dialog>; })()}
   </section>;
 }
 
@@ -257,36 +278,73 @@ function QuickCapture({ draftKey, placeholder, onCapture, label, captureOnBlur =
   return <form className="loop-quick-capture" onSubmit={e => { e.preventDefault(); submit(); }}><textarea ref={input} aria-label={label ?? "Add loop in path"} rows={1} placeholder={placeholder} value={text} onChange={e => change(e.target.value)} onBlur={() => { if (captureOnBlur && document.hasFocus() && text.trim() && onCapture(text)) change(""); }} onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); submit(); } }} /><button type="submit" aria-label="Add" disabled={!text.trim()}><Plus size={15} /></button>{storageError && <small role="alert">Draft backup unavailable. Capture this before leaving.</small>}</form>;
 }
 
-function LoopRow({ item, pathId, paths, people, today, draftKey, refreshPeople, onChange, onLog, onStep, onResolve, onMove, onDragStart, onDragEnd }: { item: LoopItem; pathId: string; paths: LoopPath[]; people: ViewEntity[]; today: string; draftKey: string; refreshPeople: () => Promise<void>; onChange: (patch: Partial<LoopItem>) => boolean; onLog: (text: string) => boolean; onStep: () => void; onResolve: () => void; onMove: (path: string) => void; onDragStart: (e: DragEvent) => void; onDragEnd: () => void }) {
+function LoopRow({ item, pathId, paths, people, today, draftKey, refreshPeople, onChange, onLog, onStep, onRemoveStep, onResolve, onMove, onDragStart, onDragEnd }: { item: LoopItem; pathId: string; paths: LoopPath[]; people: ViewEntity[]; today: string; draftKey: string; refreshPeople: () => Promise<void>; onChange: (patch: Partial<LoopItem>) => boolean; onLog: (text: string) => boolean; onStep: () => void; onRemoveStep: (stepId: string) => void; onResolve: () => void; onMove: (path: string) => void; onDragStart: (e: DragEvent) => void; onDragEnd: () => void }) {
   const due = !!item.review && item.review <= today;
   const activity = item.history.filter(h => h.event !== "move" && (h.event !== "updated" || h.text !== "Updated loop"));
   return <article className={`loop-row ${needsMyMove(item, today) ? "needs-me" : ""} ${item.resolved ? "is-checked" : ""}`}>
     <div className="loop-row-title"><input type="checkbox" checked={item.resolved} aria-label={`${item.resolved ? "Reopen" : "Resolve"} ${item.title}`} title="Check or reopen this loop" onChange={onResolve} /><InlineText value={item.title} label={`Loop title: ${item.title}`} required maxLength={200} onSave={title => onChange({ title })} /><button className="loop-grip" draggable aria-label={`Drag ${item.title}`} onDragStart={onDragStart} onDragEnd={onDragEnd}><GripVertical size={14} /></button></div>
-    <div className="loop-row-meta"><StyledSelect label={`State for ${item.title}`} value={item.state} onChange={state => onChange({ state: state as LoopItem["state"] })} compact options={stateOptions} /><details className="loop-owner-menu"><summary>{item.ownerId === "me" ? "Your move" : item.ownerId ? ownerName(item, people) : "Assign"}<ChevronDown size={10} /></summary><div className="loop-owner-panel"><label>Next move<StyledSelect label={`Next owner for ${item.title}`} value={item.ownerId} onChange={ownerId => onChange({ ownerId })} options={[{ value: "me", label: "Me" }, { value: "", label: "Unassigned" }, ...item.people.map(p => ({ value: p.id, label: people.find(e => e.id === p.id)?.name ?? p.name }))]} /></label><PersonPicker people={people} attached={item.people} refreshPeople={refreshPeople} onAttach={person => onChange({ people: [...item.people, person], ownerId: person.id, state: "waiting" })} /><small>Pick or add someone to pass the next move to them.</small></div></details>{due && <span className="loop-due-dot" title={`Review due ${item.review}`}>Review due</span>}</div>
-    <Trail item={item} draftKey={`${draftKey}:planned`} onChange={onChange} onStep={onStep} />
+    <div className="loop-row-meta"><StyledSelect label={`State for ${item.title}`} value={item.state} onChange={state => onChange({ state: state as LoopItem["state"] })} compact options={stateOptions} /><Menu className="loop-owner-menu"><summary>{item.ownerId === "me" ? "Your move" : item.ownerId ? ownerName(item, people) : "Assign"}<ChevronDown size={10} /></summary><div className="loop-owner-panel"><label>Next move<StyledSelect label={`Next owner for ${item.title}`} value={item.ownerId} onChange={ownerId => onChange({ ownerId })} options={[{ value: "me", label: "Me" }, { value: "", label: "Unassigned" }, ...item.people.map(p => ({ value: p.id, label: people.find(e => e.id === p.id)?.name ?? p.name }))]} /></label><PersonPicker people={people} attached={item.people} refreshPeople={refreshPeople} onAttach={person => onChange({ people: [...item.people, person], ownerId: person.id, state: "waiting" })} /><small>Pick or add someone to pass the next move to them.</small></div></Menu>{due && <span className="loop-due-dot" title={`Review due ${item.review}`}>Review due</span>}</div>
+    <Trail item={item} people={people} refreshPeople={refreshPeople} draftKey={`${draftKey}:planned`} onChange={onChange} onStep={onStep} onRemove={onRemoveStep} />
     <details className="loop-inline-details"><summary>Notes, people & review<ChevronDown size={11} /></summary><div className="loop-details-body"><label className="loop-field">Notes<InlineText value={item.context} label={`Notes for ${item.title}`} placeholder="Anything worth keeping…" multiline maxLength={4000} onSave={context => onChange({ context })} /></label><div className="loop-detail-meta"><label>Path<StyledSelect label={`Path for ${item.title}`} value={pathId} onChange={onMove} options={paths.map(p => ({ value: p.id, label: p.name, color: p.color }))} /></label><label>Review<input type="date" aria-label={`Review date for ${item.title}`} value={item.review} onChange={e => onChange({ review: e.target.value })} /></label></div><div className="loop-linked-people"><small>People</small><div className="loop-people-chips">{item.people.map(p => <span key={p.id}>{people.find(e => e.id === p.id)?.name ?? p.name}<button aria-label={`Detach ${p.name}`} onClick={() => onChange({ people: item.people.filter(x => x.id !== p.id), ownerId: item.ownerId === p.id ? "" : item.ownerId })}><X size={12} /></button></span>)}</div><PersonPicker people={people} attached={item.people} refreshPeople={refreshPeople} onAttach={person => onChange({ people: [...item.people, person] })} /></div><div className="loop-trail-heading">Log something that happened</div><QuickCapture draftKey={`${draftKey}:move`} placeholder="It goes on the trail as a done step…" onCapture={onLog} />{activity.length > 0 && <><div className="loop-trail-heading">Activity</div><ol className="loop-trail loop-activity">{activity.map(h => <li key={h.id}><p>{h.text}</p><time dateTime={h.at}>{formatWhen(h.at)}</time></li>)}</ol></>}</div></details>
   </article>;
+}
+
+type Step = NonNullable<LoopItem["steps"]>[number];
+
+function StepPeople({ step, people, refreshPeople, onAttach, onDetach }: { step: Step; people: ViewEntity[]; refreshPeople: () => Promise<void>; onAttach: (person: LoopPerson) => void; onDetach: (id: string) => void }) {
+  return <Menu className="trail-person-menu">
+    <summary aria-label={`Attach a person to step: ${step.text}`} title="Attach a person"><UserPlus size={13} /><span>Add</span></summary>
+    <div className="trail-person-panel">
+      {step.people.length > 0 && <div className="loop-people-chips">{step.people.map(p => { const name = people.find(e => e.id === p.id)?.name ?? p.name; return <span key={p.id}>{name}<button type="button" aria-label={`Detach ${name} from step`} onClick={() => onDetach(p.id)}><X size={12} /></button></span>; })}</div>}
+      <PersonPicker people={people} attached={step.people} refreshPeople={refreshPeople} onAttach={onAttach} />
+    </div>
+  </Menu>;
+}
+
+/** A `<details>` popover that closes on an outside click, outside focus or Escape. */
+function Menu({ className, children }: { className: string; children: ReactNode }) {
+  const ref = useRef<HTMLDetailsElement>(null);
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    if (!open) return;
+    const close = () => { if (ref.current) ref.current.open = false; };
+    const outside = (event: Event) => {
+      const target = event.target;
+      if (target instanceof Node && ref.current?.contains(target)) return;
+      // Select menus render in a portal outside the panel that opened them.
+      if (target instanceof Element && target.closest(".select-positioner")) return;
+      close();
+    };
+    const escape = (event: KeyboardEvent) => { if (event.key === "Escape") close(); };
+    document.addEventListener("pointerdown", outside, true);
+    document.addEventListener("focusin", outside, true);
+    document.addEventListener("keydown", escape, true);
+    return () => { document.removeEventListener("pointerdown", outside, true); document.removeEventListener("focusin", outside, true); document.removeEventListener("keydown", escape, true); };
+  }, [open]);
+  return <details ref={ref} className={className} onToggle={e => setOpen(e.currentTarget.open)}>{children}</details>;
 }
 
 const RECENT_DONE = 3;
 const formatWhen = (at: string) => new Date(at).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
 
-function Trail({ item, draftKey, onChange, onStep }: { item: LoopItem; draftKey: string; onChange: (patch: Partial<LoopItem>) => boolean; onStep: () => void }) {
+function Trail({ item, people, refreshPeople, draftKey, onChange, onStep, onRemove }: { item: LoopItem; people: ViewEntity[]; refreshPeople: () => Promise<void>; draftKey: string; onChange: (patch: Partial<LoopItem>) => boolean; onStep: () => void; onRemove: (stepId: string) => void }) {
   const [showEarlier, setShowEarlier] = useState(false);
   const moves = item.history.filter(h => h.event === "move");
   const steps = item.steps ?? [];
   type Step = (typeof steps)[number];
-  const done = [...moves.map(h => ({ at: h.at, move: h, step: undefined as Step | undefined })), ...steps.filter(s => s.done).map(s => ({ at: s.completedAt ?? "", move: undefined, step: s }))].sort((a, b) => a.at.localeCompare(b.at));
-  const earlier = Math.max(0, done.length - RECENT_DONE);
   const open = steps.filter(s => !s.done);
   const currentId = item.next ? "next" : open[0]?.id;
-  const stepRow = (step: Step) => <li key={step.id} className={`trail-step ${step.done ? "trail-done" : ""} ${step.id === currentId ? "trail-current" : ""}`}><span className="loop-trail-mark"><input type="checkbox" checked={step.done} aria-label={`${step.done ? "Uncheck" : "Check"} step: ${step.text}`} title={step.completedAt ? `Done ${formatWhen(step.completedAt)}` : "Check this step; the loop stays open"} onChange={e => onChange({ steps: toggleStep(item, step.id, e.target.checked).steps })} /></span><div><InlineText value={step.text} label={`Edit step: ${step.text}`} maxLength={2000} required onSave={text => onChange({ steps: steps.map(s => s.id === step.id ? { ...s, text } : s) })} /></div></li>;
+  type Entry = { move?: (typeof moves)[number]; step?: Step; next?: true };
+  const entries: Entry[] = [...moves.map(move => ({ move })), ...steps.map(step => ({ step }))];
+  if (item.next) { const at = entries.findIndex(e => e.step && !e.step.done); entries.splice(at < 0 ? entries.length : at, 0, { next: true }); }
+  const leadingDone = entries.findIndex(e => e.next || (e.step && !e.step.done));
+  const earlier = Math.max(0, (leadingDone < 0 ? entries.length : leadingDone) - RECENT_DONE);
+  const remove = (id: string, text: string) => <button type="button" className="trail-remove" aria-label={`Delete step: ${text}`} title="Delete step" onClick={() => onRemove(id)}><Trash2 size={13} /></button>;
+  const stepRow = (step: Step) => <li key={step.id} className={`trail-step ${step.done ? "trail-done" : ""} ${step.id === currentId ? "trail-current" : ""}`}><span className="loop-trail-mark"><input type="checkbox" checked={step.done} aria-label={`${step.done ? "Uncheck" : "Check"} step: ${step.text}`} title={step.completedAt ? `Done ${formatWhen(step.completedAt)}` : "Check this step; the loop stays open"} onChange={e => onChange({ steps: toggleStep(item, step.id, e.target.checked).steps })} /></span><div><InlineText value={step.text} label={`Edit step: ${step.text}`} maxLength={2000} required onSave={text => onChange({ steps: steps.map(s => s.id === step.id ? { ...s, text } : s) })} />{step.people.length > 0 && <small className="trail-step-people">with {step.people.map(p => people.find(e => e.id === p.id)?.name ?? p.name).join(", ")}</small>}<StepPeople step={step} people={people} refreshPeople={refreshPeople} onAttach={person => onChange({ steps: steps.map(s => s.id === step.id ? { ...s, people: [...s.people, person] } : s), people: item.people.some(p => p.id === person.id) ? item.people : [...item.people, person] })} onDetach={id => onChange({ steps: steps.map(s => s.id === step.id ? { ...s, people: s.people.filter(p => p.id !== id) } : s) })} />{remove(step.id, step.text)}</div></li>;
   if (!moves.length && !item.next && !steps.length && item.resolved) return null;
   return <ol className="loop-trail connected-trail loop-step-trail">
     {earlier > 0 && <li className="trail-earlier"><span className="loop-trail-mark"><span className="trail-node" /></span><button onClick={() => setShowEarlier(v => !v)}>{showEarlier ? "Hide earlier steps" : `${earlier} earlier ${earlier === 1 ? "step" : "steps"}`}</button></li>}
-    {(showEarlier ? done : done.slice(earlier)).map(({ move, step }) => step ? stepRow(step) : <li key={move!.id} className="trail-step trail-done"><span className="loop-trail-mark"><input type="checkbox" checked readOnly disabled aria-label={`Done: ${move!.text}`} /></span><div><p title={formatWhen(move!.at)}>{move!.text}</p></div></li>)}
-    {item.next && <li className="trail-step trail-current"><span className="loop-trail-mark"><input type="checkbox" checked={false} disabled={item.resolved} aria-label={`Check step: ${item.next}`} title="Check this step; the loop stays open" onChange={onStep} /></span><div><InlineText value={item.next} label={`Edit step: ${item.next}`} maxLength={2000} onSave={next => onChange({ next })} /></div></li>}
-    {open.map(stepRow)}
+    {(showEarlier ? entries : entries.slice(earlier)).map(({ move, step, next }) => step ? stepRow(step) : next ? <li key="next" className="trail-step trail-current"><span className="loop-trail-mark"><input type="checkbox" checked={false} disabled={item.resolved} aria-label={`Check step: ${item.next}`} title="Check this step; the loop stays open" onChange={onStep} /></span><div><InlineText value={item.next} label={`Edit step: ${item.next}`} maxLength={2000} onSave={value => onChange({ next: value })} />{remove("next", item.next)}</div></li> : <li key={move!.id} className="trail-step trail-done"><span className="loop-trail-mark"><input type="checkbox" checked readOnly disabled aria-label={`Done: ${move!.text}`} /></span><div><p title={formatWhen(move!.at)}>{move!.text}</p>{remove(move!.id, move!.text)}</div></li>)}
     {!item.resolved && <li className="trail-add"><span className="loop-trail-mark"><Plus size={11} /></span><QuickCapture draftKey={draftKey} placeholder={currentId ? "Then…" : "Next step…"} label={`Add a step to ${item.title}`} captureOnBlur onCapture={text => onChange({ steps: planSteps(item, text).steps })} /></li>}
   </ol>;
 }

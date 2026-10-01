@@ -65,7 +65,17 @@
 .loop-step-trail .trail-done p,.loop-step-trail .trail-done .loop-inline-text{font-size:11px;padding:2px 3px;line-height:1.55}
 .loop-step-trail .trail-earlier button{border:0;background:none;padding:1px 3px;font-size:10px;color:var(--muted);cursor:pointer}.loop-step-trail .trail-earlier button:hover{color:var(--foreground)}
 .loop-step-trail .trail-add .loop-trail-mark{color:var(--muted)}
-.loop-step-trail .loop-quick-capture{flex:1;min-width:0}.loop-step-trail .loop-quick-capture textarea{font-size:11px;padding:2px 3px;min-height:22px}.loop-step-trail .loop-quick-capture button{background:none;padding:3px}.loop-step-trail .loop-quick-capture button:disabled{visibility:hidden}
+.loop-step-trail .trail-step>div{position:relative;border-radius:4px}.loop-step-trail .trail-step>div:hover,.loop-step-trail .trail-step>div:focus-within{background:var(--subtle)}
+.loop-step-trail .trail-step .loop-inline-text,.loop-step-trail .trail-step p{padding-right:28px}.loop-step-trail .trail-step .loop-inline-text{display:block;padding-top:3px;padding-bottom:3px}.loop-step-trail .trail-step.trail-done .loop-inline-text{padding-top:4px;padding-bottom:4px}.loop-step-trail .trail-step .loop-inline-text:is(:hover,:focus){background:none}
+.loop-step-trail .trail-step:has(.trail-person-menu) .loop-inline-text{padding-right:82px}
+.trail-step-people{display:block;padding:0 82px 3px 3px;font-size:10px;line-height:1.5;color:var(--muted);overflow-wrap:anywhere}
+.trail-person-menu{position:absolute;top:0;right:25px}
+.trail-person-menu>summary{display:flex;align-items:center;gap:4px;height:24px;padding:0 7px;font-size:11px;font-weight:500;list-style:none;border-radius:5px;color:var(--muted);cursor:pointer;opacity:0}.trail-person-menu>summary:hover,.trail-person-menu[open]>summary{background:color-mix(in srgb,var(--foreground) 7%,transparent)}.trail-person-menu>summary::-webkit-details-marker{display:none}
+.trail-step:hover .trail-person-menu>summary,.trail-person-menu[open]>summary,.trail-person-menu>summary:focus-visible{opacity:1}.trail-person-menu>summary:hover{color:var(--foreground)}
+.trail-person-panel{position:absolute;top:27px;right:-25px;width:240px;z-index:12;padding:11px;border:1px solid var(--border);border-radius:9px;background:var(--background);box-shadow:0 7px 22px #00000015;display:grid;gap:8px}.trail-person-panel .loop-people-chips{margin:0}
+.trail-remove{position:absolute;top:0;right:0;display:grid;place-items:center;width:24px;height:24px;border:0;background:none;padding:0;border-radius:5px;color:var(--muted);opacity:0}.trail-step:hover .trail-remove,.trail-remove:focus-visible{opacity:1}.trail-remove:hover{color:var(--destructive);background:color-mix(in srgb,var(--destructive) 10%,transparent);filter:none}
+@media(hover:none){.trail-remove,.trail-person-menu>summary{opacity:.6}}
+.loop-step-trail .loop-quick-capture{flex:1;min-width:0}.loop-step-trail .loop-quick-capture textarea{font-size:12px;padding:3px;min-height:22px}.loop-step-trail .loop-quick-capture button{background:none;padding:3px}.loop-step-trail .loop-quick-capture button:disabled{visibility:hidden}
 .loop-inline-details{grid-column:1/-1;font-size:11px;min-width:0}
 .loop-inline-details>summary{display:flex;align-items:center;gap:5px;list-style:none;color:var(--muted);cursor:pointer;font-size:10px;padding:3px 0;margin-left:24px;opacity:.7}.loop-row:hover .loop-inline-details>summary,.loop-inline-details[open]>summary{opacity:1}.loop-inline-details[open]>summary>svg{transform:rotate(180deg)}
 .loop-activity li{display:block;margin:0 0 7px}.loop-activity p{font-size:10px;color:var(--muted)}
