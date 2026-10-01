@@ -1,4 +1,7 @@
 .compact-loops .loops-heading{margin-bottom:20px}
+.loops-workspace :focus-visible{outline-color:color-mix(in srgb,var(--foreground) 22%,transparent)}
+.loops-workspace :is(textarea,input:not([type=checkbox])):focus-visible,.loops-workspace .styled-select:focus-visible{outline:none}
+.loops-workspace .styled-select:focus-visible{background:var(--subtle)}
 .loop-row.is-checked .loop-row-title>.loop-inline-text{text-decoration:line-through;color:var(--muted)}
 .loop-row.is-checked .loop-row-title>input{opacity:.8}
 .connected-trail{position:relative;padding:4px 0}
@@ -24,7 +27,7 @@
 .dock-modes button[aria-pressed=true]{background:var(--background);color:var(--foreground);box-shadow:0 0 0 1px var(--border),0 1px 3px #00000014}.loops-capture-dock .loops-capture-destination small{margin-left:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .loop-quick-capture{display:flex;align-items:flex-start;gap:7px;flex-wrap:wrap}
 .loop-quick-capture textarea{flex:1;min-width:0;border:0;background:transparent;padding:8px 4px;font-size:12px;line-height:1.55;resize:none;field-sizing:content;min-height:34px;max-height:220px}
-.loop-quick-capture textarea::placeholder{color:var(--muted)}
+.loop-quick-capture textarea::placeholder{color:var(--muted)}.loop-quick-capture textarea:focus-visible{outline:none}
 .loop-quick-capture button{border:0;background:var(--subtle);border-radius:6px;padding:8px;display:flex;align-items:center;font-size:12px}
 .loops-capture-destination{display:flex;gap:6px;align-items:center;color:var(--muted);font-size:11px;margin-top:7px;flex-wrap:wrap}
 .loops-capture-destination select{border:0;background:none;font-size:11px;padding:3px;max-width:160px;color:var(--foreground)}
