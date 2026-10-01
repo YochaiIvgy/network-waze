@@ -153,7 +153,8 @@
 .compact-loops .loop-path-items > .loop-quick-capture > button:disabled { visibility: hidden; }
 .compact-loops .loop-step-trail .loop-quick-capture textarea { font-size: 12px; }
 .compact-loops .loop-details-body { padding: 16px 12px; }
-.compact-loops :is(textarea,input:not([type=checkbox]),.styled-select):focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
+.compact-loops :is(textarea,input:not([type=checkbox]),.styled-select):focus,
+.compact-loops :is(textarea,input:not([type=checkbox]),.styled-select):focus-visible { outline: none; }
 
 /* Auxiliary actions stay in place and appear for pointer, keyboard and touch. */
 @media (hover: hover) and (pointer: fine) {

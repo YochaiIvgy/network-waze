@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Network, Users, Building2, Route, AudioLines, Search, Plus, ArrowUpRight, ArrowRight,
   ChevronDown, Sun, Moon, SlidersHorizontal, X, Sparkles, Check, Link2, Settings2,
-  GitMerge, CircleHelp, Gauge, Quote as QuoteIcon, Infinity as LoopIcon, PanelLeftClose, PanelLeftOpen,
+  GitMerge, CircleHelp, Gauge, Quote as QuoteIcon, Infinity as LoopIcon, PanelLeftClose, PanelLeftOpen, Waypoints,
 } from "lucide-react";
 import { EntityManager } from "@/components/EntityManager";
 import { AISettings } from "@/components/AISettings";
@@ -317,11 +317,11 @@ export default function Home() {
         </div>
         <div className="nav-label">WORKSPACE</div>
         <nav>
-          <button className={`nav-item nav-section ${view !== "Loops" && view !== "Settings" ? "section-selected" : ""}`} aria-label="Network section" aria-expanded={networkExpanded} title="Network" onClick={() => setNetworkExpanded(!networkExpanded)}><Network size={18} /><span>Network</span><ChevronDown size={14} className={networkExpanded ? "" : "collapsed"} /></button>
+          <button className={`nav-item nav-section ${view !== "Loops" && view !== "Settings" ? "section-selected" : ""}`} aria-label="Links section" aria-expanded={networkExpanded} title="Links" onClick={() => setNetworkExpanded(!networkExpanded)}><Waypoints size={18} /><span>Links</span><ChevronDown size={14} className={networkExpanded ? "" : "collapsed"} /></button>
           {networkExpanded && <div className="network-subnav">{(Object.entries(NAV) as Array<[ViewName, typeof Network]>).filter(([name]) => name !== "Settings" && name !== "Loops").map(([name, Icon]) => (
-            <button key={name} aria-label={name === "Network" ? "Network map" : name} title={name === "Network" ? "Map" : name} aria-current={view === name ? "page" : undefined} className={`nav-item ${view === name ? "active" : ""}`} onClick={() => nav(name)}>
+            <button key={name} aria-label={name} title={name} aria-current={view === name ? "page" : undefined} className={`nav-item ${view === name ? "active" : ""}`} onClick={() => nav(name)}>
               <Icon size={18} />
-              <span>{name === "Network" ? "Map" : name}</span>
+              <span>{name}</span>
               {name === "Entity review" && g.reviews.length > 0 && <b>{g.reviews.length}</b>}
             </button>
           ))}</div>}
