@@ -1,6 +1,38 @@
 import { z } from "zod";
 
-export const PATH_COLORS = ["#7c83db", "#5a9b85", "#d6a04e", "#ce788d", "#589ebc", "#a185bf"];
+export const PATH_PALETTE = [
+  { name: "Sage", color: "#36866b" },
+  { name: "Sky", color: "#3986bd" },
+  { name: "Lavender", color: "#8b63bd" },
+  { name: "Sand", color: "#c39330" },
+  { name: "Rose", color: "#c26086" },
+  { name: "Sea glass", color: "#27999b" },
+  { name: "Periwinkle", color: "#5c70c6" },
+  { name: "Clay", color: "#cf7951" },
+  { name: "Olive", color: "#859739" },
+  { name: "Plum", color: "#a05191" },
+  { name: "Slate", color: "#54738d" },
+  { name: "Brick", color: "#b45750" },
+];
+export const PATH_COLORS = PATH_PALETTE.map(option => option.color);
+// Older saved boards remain valid and render in the matching calmer hue.
+const LEGACY_PATH_COLORS: Record<string, string> = {
+  "#7f9b86": "#36866b",
+  "#809fb6": "#3986bd",
+  "#a294b8": "#8b63bd",
+  "#b6a079": "#c39330",
+  "#bb929c": "#c26086",
+  "#79a5a0": "#27999b",
+  "#8d96bc": "#5c70c6",
+  "#bd9783": "#cf7951",
+  "#9ca279": "#859739",
+  "#aa8eab": "#a05191",
+  "#8c9ba8": "#54738d",
+  "#91aba4": "#b45750",
+  "#7c83db": "#5c70c6", "#5a9b85": "#36866b", "#d6a04e": "#c39330",
+  "#ce788d": "#c26086", "#589ebc": "#3986bd", "#a185bf": "#8b63bd",
+};
+export const pathDisplayColor = (color: string) => LEGACY_PATH_COLORS[color] ?? color;
 export const LOOP_STATES = { action: "Action", waiting: "Waiting", decision: "Decision", note: "Mental tab" } as const;
 const stateSchema = z.enum(["action", "waiting", "decision", "note"]);
 const personSchema = z.object({ id: z.string().uuid(), name: z.string().min(1).max(200) });
@@ -29,7 +61,7 @@ export const loopItemSchema = z.object({
 export const loopPathSchema = z.object({
   id: z.string().uuid(),
   name: z.string().trim().min(1).max(100),
-  color: z.enum(PATH_COLORS as [string, ...string[]]),
+  color: z.enum([...PATH_COLORS, ...Object.keys(LEGACY_PATH_COLORS)] as [string, ...string[]]),
   items: z.array(loopItemSchema).max(2000),
 });
 export const loopsSchema = z.array(loopPathSchema).min(1).max(100).superRefine((paths, ctx) => {

@@ -1,4 +1,4 @@
-.compact-loops .loops-heading{margin-bottom:20px}
+.compact-loops .loops-heading{margin-bottom:22px}
 .loops-workspace :focus-visible{outline-color:color-mix(in srgb,var(--foreground) 22%,transparent)}
 .loops-workspace :is(textarea,input:not([type=checkbox])):focus-visible,.loops-workspace .styled-select:focus-visible{outline:none}
 .loops-workspace .styled-select:focus-visible{background:var(--subtle)}
@@ -92,3 +92,119 @@
 .loop-earlier-done .loop-resolved-row{margin:8px 0}
 .loop-resolved-row{display:grid;grid-template-columns:14px 1fr;gap:6px;margin:12px 0}.loop-resolved-row>span{font-size:11px;line-height:1.7;text-decoration:line-through;overflow-wrap:anywhere}.loop-resolved-row>details{grid-column:2}.loop-resolved-row>details>summary{font-size:10px;margin-bottom:8px}
 @media(max-width:600px){.compact-loops .loop-path{width:min(310px,calc(100vw - 90px));min-width:min(310px,calc(100vw - 90px))}.loops-capture-bar{padding:10px}.loops-capture-dock .loops-capture-destination small{display:none}.network-search.loops-capture-dock.is-open{height:146px}.loops-filters button{padding:6px 7px;font-size:11px}.loop-owner-panel{width:225px;left:-75px}.loop-detail-meta{grid-template-columns:1fr}}
+
+/* Quiet board: content and progress carry the hierarchy, not card chrome. */
+.loops-page { background: var(--background); }
+.compact-loops { --loop-secondary: color-mix(in srgb, var(--foreground) 68%, var(--background)); }
+.compact-loops .loops-heading h1 { font-size: 30px; font-weight: 550; }
+.compact-loops .loops-total { border: 0; padding: 0; color: var(--loop-secondary); }
+.compact-loops .loops-quiet { border-color: transparent; color: var(--loop-secondary); }
+.compact-loops .loops-quiet:hover { background: var(--subtle); color: var(--foreground); }
+.compact-loops .loops-toolbar { margin-bottom: 28px; }
+.compact-loops .loops-filters { gap: 14px; }
+.compact-loops .loops-filters button { border-radius: 0; padding: 8px 0; color: var(--loop-secondary); }
+.compact-loops .loops-filters button[aria-pressed=true] { border-color: transparent; border-bottom-color: var(--foreground); }
+.compact-loops .loops-board { gap: 32px; scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
+/* The board scrolls horizontally, so edge controls need gutter room inside it; snapping must respect that gutter. */
+.compact-loops .loops-board { padding-inline: 12px; margin-inline: -12px; scroll-padding-inline: 12px; }
+.compact-loops .loop-path { border: 0; border-radius: 0; box-shadow: none; }
+.compact-loops .loop-path.drop-target { box-shadow: 0 0 0 2px var(--path-color); border-radius: 8px; }
+.compact-loops .loop-path-header {
+  position: relative;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 0;
+  border-top: 3px solid var(--path-color);
+  border-bottom: 1px solid color-mix(in srgb, var(--path-color) 22%, transparent);
+  border-radius: 8px 8px 0 0;
+  background: color-mix(in srgb, var(--path-color) 8%, var(--background));
+}
+.compact-loops .loop-path-header::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--path-color); flex-shrink: 0; }
+.compact-loops .loop-path-header > .loop-inline-text { font-size: 14px; }
+.compact-loops .loop-path-header > .loop-grip { order: 1; }
+.compact-loops .loop-path-menu { order: 2; }
+.compact-loops .loop-path-items { padding: 0; }
+.compact-loops .loop-row { padding: 22px 0 18px; border-bottom-color: color-mix(in srgb, var(--border) 60%, transparent); }
+.compact-loops .loop-row-title { gap: 9px; }
+.compact-loops .loop-row-title > .loop-inline-text { font-size: 14px; font-weight: 550; line-height: 1.55; }
+.compact-loops .loop-row-meta { margin: 4px 0 10px 23px; gap: 10px; }
+.compact-loops .loop-row-meta .styled-select,
+.compact-loops .loop-owner-menu > summary { font-size: 11px; color: var(--loop-secondary); }
+.compact-loops .loop-row-meta .select-dot { display: block; }
+.compact-loops .loop-row-meta .select-chevron,
+.compact-loops .loop-owner-menu > summary > svg { opacity: 0; }
+.compact-loops .loop-row-meta:hover .select-chevron,
+.compact-loops .loop-row-meta:focus-within .select-chevron,
+.compact-loops .loop-row-meta:hover .loop-owner-menu > summary > svg,
+.compact-loops .loop-row-meta:focus-within .loop-owner-menu > summary > svg { opacity: 1; }
+.compact-loops .loop-step-trail { margin: 0 0 0 23px; }
+.compact-loops .loop-step-trail .loop-inline-text { font-size: 13px; color: var(--loop-secondary); }
+.compact-loops .loop-step-trail .trail-current .loop-inline-text { color: var(--foreground); font-weight: 400; }
+.compact-loops .loop-step-trail .trail-current .loop-trail-mark { box-shadow: none; }
+.compact-loops .loop-step-trail .trail-step:has(.trail-person-menu) .loop-inline-text { padding-right: 52px; }
+.compact-loops .trail-step-people { padding-right: 52px; font-size: 11px; color: var(--loop-secondary); }
+.compact-loops .trail-person-menu > summary { width: 25px; padding: 0; justify-content: center; }
+.compact-loops .loop-step-trail .trail-done .loop-inline-text,
+.compact-loops .loop-step-trail .trail-done p { font-size: 12px; color: var(--green); text-decoration-color: color-mix(in srgb, var(--green) 45%, transparent); }
+.compact-loops .loop-row.is-checked .loop-row-title > .loop-inline-text { color: var(--green); text-decoration-color: color-mix(in srgb, var(--green) 45%, transparent); }
+.compact-loops .loop-row.is-checked .loop-row-title > input { opacity: 1; }
+.compact-loops .loop-inline-details > summary { width: fit-content; margin: 5px 0 0 26px; font-size: 11px; color: var(--loop-secondary); opacity: 1; }
+.compact-loops .loop-path-items > .loop-quick-capture { margin-top: 12px; padding-left: 22px; }
+.compact-loops .loop-path-items > .loop-quick-capture > button:disabled { visibility: hidden; }
+.compact-loops .loop-step-trail .loop-quick-capture textarea { font-size: 12px; }
+.compact-loops .loop-details-body { padding: 16px 12px; }
+.compact-loops :is(textarea,input:not([type=checkbox]),.styled-select):focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
+
+/* Auxiliary actions stay in place and appear for pointer, keyboard and touch. */
+@media (hover: hover) and (pointer: fine) {
+  .compact-loops .loop-grip { opacity: 0; }
+  .compact-loops .loop-path-header:hover > .loop-grip,
+  .compact-loops .loop-path-header:focus-within > .loop-grip,
+  .compact-loops .loop-row-title:hover > .loop-grip,
+  .compact-loops .loop-row-title:focus-within > .loop-grip { opacity: 1; }
+}
+@media (hover: none) {
+  .compact-loops .loop-row-meta .select-chevron,
+  .compact-loops .loop-owner-menu > summary > svg { opacity: 1; }
+}
+@media (max-width: 600px) {
+  .compact-loops .loops-board { gap: 24px; }
+  .compact-loops .loops-filters { gap: 16px; }
+  .compact-loops .loops-toolbar { gap: 8px; margin-bottom: 22px; }
+}
+/* A wider palette for softly tinted board headers. */
+.compact-loops .loop-path-menu > div { width: 230px; }
+.compact-loops .loop-swatches { display: grid; grid-template-columns: repeat(6, 28px); gap: 8px; margin: 12px 0 16px; }
+.compact-loops .loop-swatches button { width: 28px; height: 28px; }
+.compact-loops .loop-swatches button[aria-pressed=true] { outline: 2px solid var(--foreground); outline-offset: 2px; }
+
+.loop-row-action { display: grid; place-items: center; flex-shrink: 0; width: 24px; height: 26px; padding: 0; border: 0; border-radius: 5px; color: var(--muted); background: none; }
+.loop-row-action:hover { background: var(--subtle); color: var(--foreground); }
+.compact-loops .loop-row-title { gap: 5px; }
+.compact-loops .loop-row-title > .loop-grip { width: 18px; padding: 0; flex-shrink: 0; }
+.compact-loops .loop-step-trail { margin-top: 8px; }
+/* The composer's space is always reserved so revealing it never shifts the board. */
+.compact-loops .loop-trail.loop-step-trail > .trail-add {
+  visibility: hidden;
+  opacity: 0;
+  transform: translateY(-4px);
+  transition: opacity .18s ease, transform .18s ease, visibility .18s;
+}
+.compact-loops .loop-row:is(:hover, :focus-within) .loop-trail.loop-step-trail > .trail-add,
+.compact-loops .loop-trail.loop-step-trail > .trail-add:has(textarea:not(:placeholder-shown)) { visibility: visible; opacity: 1; transform: none; }
+.compact-loops .loop-step-trail > li:has(+ .trail-add)::before { transform: scaleY(0); transform-origin: top; transition: transform .18s ease; }
+.compact-loops .loop-row:is(:hover, :focus-within) .loop-step-trail > li:has(+ .trail-add)::before,
+.compact-loops .loop-step-trail:has(.trail-add textarea:not(:placeholder-shown)) > li:has(+ .trail-add)::before { transform: none; }
+@media (hover: none) {
+  .compact-loops .loop-trail.loop-step-trail > .trail-add { visibility: visible; opacity: 1; transform: none; }
+  .compact-loops .loop-step-trail > li:has(+ .trail-add)::before { transform: none; }
+}
+@media (prefers-reduced-motion: reduce) { .compact-loops .loop-trail.loop-step-trail, .compact-loops .loop-trail.loop-step-trail > .trail-add, .compact-loops .loop-step-trail > li:has(+ .trail-add)::before { transition: none; } }
+.loop-exception { grid-column: 1/-1; display: flex; align-items: center; gap: 7px; flex-wrap: wrap; justify-self: start; margin: 4px 0 0 23px; padding: 2px 3px; border: 0; background: none; color: var(--muted); font-size: 11px; text-align: left; }
+.loop-exception > span + span { margin-left: 5px; }
+.loop-status-dot { width: 5px; height: 5px; border-radius: 50%; }
+.loops-loop-editor { max-height: 85dvh; overflow-y: auto; }
+.loops-loop-editor .loop-details-body { margin: 0; padding: 16px; }
+.loop-editor-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 14px; }
+.loops-loop-editor .loop-owner-panel { left: 0; }
+.loops-loop-editor .loop-owner-menu > summary { font-size: 12px; }

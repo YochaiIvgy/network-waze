@@ -4,9 +4,15 @@ import { createEmbeddedPool, setPool, query, one, closePool } from "../src/lib/d
 import { env } from "../src/lib/env";
 import { GET, PUT } from "../src/app/api/loops/route";
 import { manageEntity } from "../src/lib/manage-entities";
-import { loopsSchema, newLoop, recordLoop, moveItem, captureLoops, completeNext, needsMyMove, planSteps, toggleStep, type LoopPath } from "../src/lib/loops";
+import { PATH_COLORS, pathDisplayColor, loopsSchema, newLoop, recordLoop, moveItem, captureLoops, completeNext, needsMyMove, planSteps, toggleStep, type LoopPath } from "../src/lib/loops";
 
 async function main() {
+  const colorBoard = [{ id: crypto.randomUUID(), name: "Color compatibility", color: "#7c83db", items: [] }];
+  for (const color of [...PATH_COLORS, "#7c83db", "#5a9b85", "#d6a04e", "#ce788d", "#589ebc", "#a185bf"]) {
+    assert(loopsSchema.safeParse([{ ...colorBoard[0], color }]).success, `Saved color ${color} must load`);
+    assert(PATH_COLORS.includes(pathDisplayColor(color)), `Saved color ${color} must have a palette swatch`);
+  }
+  assert(!loopsSchema.safeParse([{ ...colorBoard[0], color: "not-a-color" }]).success);
   const fixture = process.argv[2] === "--ui-fixture" ? process.argv[3] : undefined;
   if (process.argv[2] === "--ui-fixture" && !fixture) throw new Error("Provide a temporary fixture directory.");
   setPool(await createEmbeddedPool(fixture ?? "memory://"));
