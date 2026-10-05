@@ -209,3 +209,34 @@
 .loop-editor-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 14px; }
 .loops-loop-editor .loop-owner-panel { left: 0; }
 .loops-loop-editor .loop-owner-menu > summary { font-size: 12px; }
+
+/* Notes on loops and trail steps: read with live links, click the text to edit. */
+.loop-notes { grid-column: 1/-1; margin: 6px 0 2px 23px; }
+.loop-notes-view { position: relative; }
+.loop-notes-text { padding: 7px 28px 7px 10px; border-radius: 6px; border-left: 2px solid color-mix(in srgb, var(--path-color, var(--green)) 45%, transparent); background: color-mix(in srgb, var(--foreground) 3%, transparent); font-size: 12.5px; line-height: 1.6; color: var(--loop-secondary, var(--foreground)); white-space: pre-wrap; overflow-wrap: anywhere; cursor: text; max-height: 320px; overflow-y: auto; }
+.loop-notes-text:hover { background: color-mix(in srgb, var(--foreground) 5%, transparent); }
+.loop-notes-text a { color: color-mix(in srgb, var(--path-color, var(--green)) 70%, var(--foreground)); text-decoration: underline; text-decoration-color: color-mix(in srgb, currentColor 40%, transparent); text-underline-offset: 2px; cursor: pointer; }
+.loop-notes-text a:hover { text-decoration-color: currentColor; }
+.loop-notes-edit { position: absolute; top: 4px; right: 4px; display: grid; place-items: center; width: 22px; height: 22px; padding: 0; border: 0; border-radius: 5px; background: none; color: var(--muted); opacity: 0; }
+.loop-notes-view:hover .loop-notes-edit, .loop-notes-edit:focus-visible { opacity: 1; }
+.loop-notes-edit:hover { background: var(--subtle); color: var(--foreground); }
+.loop-notes-input { display: block; width: 100%; min-height: 64px; max-height: 320px; padding: 7px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--background); font-size: 12.5px; line-height: 1.6; resize: none; field-sizing: content; }
+.compact-loops .loop-notes-input:focus { border-color: color-mix(in srgb, var(--path-color, var(--green)) 55%, var(--border)); }
+.loop-notes-empty { display: block; width: 100%; padding: 7px 10px; border: 1px dashed var(--border); border-radius: 6px; background: none; color: var(--muted); font-size: 12px; text-align: left; }
+.loop-notes-empty:hover { color: var(--foreground); border-color: color-mix(in srgb, var(--foreground) 25%, transparent); }
+.loop-notes-preview { grid-column: 1/-1; display: flex; align-items: flex-start; gap: 6px; justify-self: start; max-width: calc(100% - 23px); margin: 3px 0 0 23px; padding: 2px 3px; border: 0; border-radius: 4px; background: none; color: var(--muted); font-size: 11.5px; line-height: 1.5; text-align: left; }
+.loop-notes-preview > svg { flex-shrink: 0; margin-top: 3px; }
+.loop-notes-preview > span { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; overflow-wrap: anywhere; }
+.loop-notes-preview:hover { color: var(--foreground); background: var(--subtle); }
+.loop-notes-toggle { opacity: 0; }
+.loop-row-title:is(:hover, :focus-within) .loop-notes-toggle, .loop-notes-toggle[aria-expanded=true] { opacity: 1; }
+.loop-notes-toggle[aria-expanded=true] { color: var(--foreground); }
+.trail-notes { margin: 2px 0 6px 3px; }
+.trail-notes .loop-notes-text, .trail-notes .loop-notes-input, .trail-notes .loop-notes-empty { font-size: 12px; }
+.trail-notes-preview { max-width: 100%; margin: 0 0 3px; font-size: 11px; }
+.trail-notes-toggle { position: absolute; top: 0; right: 50px; display: grid; place-items: center; width: 24px; height: 24px; padding: 0; border: 0; border-radius: 5px; background: none; color: var(--muted); opacity: 0; }
+.trail-step:hover .trail-notes-toggle, .trail-notes-toggle:focus-visible, .trail-notes-toggle[aria-expanded=true] { opacity: 1; }
+.trail-notes-toggle:hover { color: var(--foreground); background: color-mix(in srgb, var(--foreground) 7%, transparent); }
+.compact-loops .loop-step-trail .trail-step:has(.trail-person-menu) .loop-inline-text { padding-right: 78px; }
+.compact-loops .trail-step-people { padding-right: 78px; }
+@media (hover: none) { .loop-notes-toggle, .trail-notes-toggle, .loop-notes-edit { opacity: .6; } }

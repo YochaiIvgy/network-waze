@@ -56,6 +56,7 @@ export const loopItemSchema = z.object({
     id: z.string().uuid(), text: z.string().trim().min(1).max(2000),
     done: z.boolean(), completedAt: z.string().datetime().nullable(),
     people: z.array(personSchema).max(50).default([]),
+    notes: z.string().max(4000).default(""),
   })).max(2000).default([]),
 }).refine(item => !item.ownerId || item.ownerId === "me" || item.people.some(p => p.id === item.ownerId), { message: "The next owner must be attached to this loop." });
 export const loopPathSchema = z.object({
@@ -109,7 +110,7 @@ export function completeNext(item: LoopItem, people: LoopPerson[]): LoopItem {
 
 export function planSteps(item: LoopItem, text: string): LoopItem {
   const steps = text.split(/\r?\n/).map(line => line.trim()).filter(Boolean).map(text => ({
-    id: crypto.randomUUID(), text, done: false, completedAt: null, people: [],
+    id: crypto.randomUUID(), text, done: false, completedAt: null, people: [], notes: "",
   }));
   return { ...item, steps: [...(item.steps ?? []), ...steps] };
 }
