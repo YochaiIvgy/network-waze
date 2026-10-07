@@ -85,6 +85,15 @@ async function main() {
     const persistedPlan = [{ ...paths[0], items: [checkedPlan] }, paths[1]];
     assert.equal((await put(2, persistedPlan)).status, 200);
     assert.deepEqual((await (await GET()).json()).paths[0].items[0].steps, checkedPlan.steps);
+    const stack = { id: crypto.randomUUID(), name: "Builder" };
+    const grouped = persistedPlan.map(path => ({ ...path, stack }));
+    assert.equal((await put(3, grouped)).status, 200);
+    assert.deepEqual((await (await GET()).json()).paths, grouped, "stacks survive server validation and persistence");
+    assert.deepEqual(moveItem(grouped, checkedPlan.id, paths[1].id)[1].stack, stack, "moving loops preserves their board's stack");
+    const ungrouped = grouped.map(({ stack: _stack, ...path }) => path);
+    assert.equal((await put(4, ungrouped)).status, 200);
+    assert.deepEqual((await (await GET()).json()).paths, persistedPlan, "ungrouping preserves all boards and loops");
+    assert.equal((await put(5, [{ ...paths[0], stack: { id: "invalid", name: "Builder" } }])).status, 400);
     console.log("PASS: handoffs, move history, checkable steps staying in one loop, bulk capture, inline edits, focus filters, persistence, validation and conflicting saves.");
   } finally { await closePool(); }
 }

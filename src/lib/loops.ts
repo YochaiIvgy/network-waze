@@ -95,6 +95,7 @@ export const loopItemSchema = z
 export const loopPathSchema = z.object({
   id: z.string().uuid(),
   name: z.string().trim().min(1).max(100),
+  stack: z.object({ id: z.string().uuid(), name: z.string().trim().min(1).max(100) }).optional(),
   color: z.enum([...PATH_COLORS, ...Object.keys(LEGACY_PATH_COLORS)] as [
     string,
     ...string[],
