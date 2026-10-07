@@ -1357,6 +1357,23 @@
   grid-template-columns: 14px 1fr auto;
   align-items: start;
 }
+.loop-done-list {
+  padding: 8px 2px 6px;
+}
+.loop-done-row {
+  grid-template-columns: 14px 1fr auto auto;
+  margin: 10px 0;
+}
+.loop-done-row > time {
+  font-size: 10.5px;
+  line-height: 1.9;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.loop-done-row:hover .loop-clear-small:hover {
+  color: var(--destructive);
+  background: color-mix(in srgb, var(--destructive) 10%, transparent);
+}
 .loop-clear-small {
   display: grid;
   place-items: center;
