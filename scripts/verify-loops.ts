@@ -4,7 +4,7 @@ import { createEmbeddedPool, setPool, query, one, closePool } from "../src/lib/d
 import { env } from "../src/lib/env";
 import { GET, PUT } from "../src/app/api/loops/route";
 import { manageEntity } from "../src/lib/manage-entities";
-import { PATH_COLORS, pathDisplayColor, loopsSchema, newLoop, recordLoop, moveItem, captureLoops, completeNext, needsMyMove, planSteps, toggleStep, type LoopPath } from "../src/lib/loops";
+import { connectLoops, dependencyBlockers, downstreamLoops, cleanDependencies, restoreDependencies, PATH_COLORS, pathDisplayColor, loopsSchema, newLoop, recordLoop, moveItem, captureLoops, completeNext, needsMyMove, planSteps, toggleStep, type LoopPath } from "../src/lib/loops";
 
 async function main() {
   const colorBoard = [{ id: crypto.randomUUID(), name: "Color compatibility", color: "#7c83db", items: [] }];
@@ -94,7 +94,33 @@ async function main() {
     assert.equal((await put(4, ungrouped)).status, 200);
     assert.deepEqual((await (await GET()).json()).paths, persistedPlan, "ungrouping preserves all boards and loops");
     assert.equal((await put(5, [{ ...paths[0], stack: { id: "invalid", name: "Builder" } }])).status, 400);
-    console.log("PASS: handoffs, move history, checkable steps staying in one loop, bulk capture, inline edits, focus filters, persistence, validation and conflicting saves.");
+    const a = { ...newLoop(), title: "Prerequisite" };
+    const b = { ...newLoop(), title: "Then" };
+    const c = { ...newLoop(), title: "Finally" };
+    let chain = [{ ...paths[0], items: [a, b] }, { ...paths[1], items: [c] }];
+    chain = connectLoops(chain, a.id, b.id).paths;
+    chain = connectLoops(chain, b.id, c.id).paths;
+    assert.equal(downstreamLoops(a.id, chain.flatMap(p => p.items)).length, 2);
+    assert.equal(dependencyBlockers(chain[0].items[1], chain.flatMap(p => p.items)).length, 1);
+    assert.match(connectLoops(chain, c.id, a.id).error!, /circular/);
+    assert.match(connectLoops(chain, a.id, a.id).error!, /itself/);
+    assert.match(connectLoops(chain, a.id, b.id).error!, /already/);
+    assert.equal((await put(5, chain)).status, 200);
+    assert.deepEqual((await (await GET()).json()).paths, chain, "dependencies persist across boards");
+    const released = chain.map(p => ({ ...p, items: p.items.map(i => i.id === a.id ? { ...i, resolved: true } : i) }));
+    assert.equal(dependencyBlockers(released[0].items[1], released.flatMap(p => p.items)).length, 0);
+    assert.equal(dependencyBlockers(released[1].items[0], released.flatMap(p => p.items)).length, 1, "release does not auto-complete the next task");
+    const both = connectLoops(chain, a.id, c.id).paths;
+    assert.equal(dependencyBlockers(both[1].items[0], both.flatMap(p => p.items)).length, 2, "all prerequisites must finish");
+    const removed = cleanDependencies(chain.map(p => ({ ...p, items: p.items.filter(i => i.id !== a.id) })));
+    assert.deepEqual(removed[0].items[0].dependsOn, []);
+    const restored = restoreDependencies([{ ...removed[0], items: [a, ...removed[0].items] }, removed[1]], chain, new Set([a.id]));
+    assert.deepEqual(restored, chain, "undo deletion restores links");
+    assert(!loopsSchema.safeParse([{ ...chain[0], items: [{ ...a, dependsOn: [c.id] }, chain[0].items[1]] }, chain[1]]).success, "server schema rejects cycles");
+    assert(!loopsSchema.safeParse([{ ...paths[0], items: [{ ...a, dependsOn: [crypto.randomUUID()] }] }]).success, "reject missing targets");
+    const { dependsOn: _old, ...legacy } = a;
+    assert.deepEqual(loopsSchema.parse([{ ...paths[0], items: [legacy] }])[0].items[0].dependsOn, [], "old data migrates safely");
+    console.log("PASS: handoffs, move history, checkable steps staying in one loop, bulk capture, inline edits, focus filters, persistence, validation, conflicting saves, dependency chains, releases, cycle prevention and deletion undo.");
   } finally { await closePool(); }
 }
 main().catch(error => { console.error(error); process.exitCode = 1; });

@@ -3,6 +3,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type DragEvent, type ReactNode } from "react";
 import { ChevronDown, Layers, Plus, Ellipsis, GripVertical, LayoutGrid, Rows3, Check, X } from "lucide-react";
 import { type LoopPath, pathDisplayColor, PATH_COLORS } from "@/lib/loops";
+import { LoopDependencyToolbar } from "./LoopDependencies";
 import { Button } from "./ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "./ui/dialog";
 
@@ -150,7 +151,7 @@ export function LoopsLayout({ paths, storageKey, onChange, previewMatches, child
       : <button className="loops-add-path-card" onClick={() => setNewPath({ stack, name: "" })}><Plus size={16} /> Add board</button>;
   }
   return <>
-    <header className="loops-command-bar">{toolbar}<div className="loops-command-actions">
+    <header className="loops-command-bar">{toolbar}<div className="loops-command-actions"><LoopDependencyToolbar />
       <details className="loops-control-menu"><summary>View <ChevronDown size={13} /></summary><div><span>Layout</span>{(["grid", "vertical"] as const).map(arrangement => <button className="loops-view-option" key={arrangement} aria-pressed={layout.arrangement === arrangement} onClick={e => { setLayout(current => ({ ...current, arrangement })); e.currentTarget.closest("details")?.removeAttribute("open"); }}>{arrangement === "grid" ? <LayoutGrid size={14} /> : <Rows3 size={14} />}<span>{arrangement === "grid" ? "Grid" : "Vertical"}</span>{layout.arrangement === arrangement && <Check size={13} />}</button>)}<span>Spacing</span>{[[280, "Compact"], [360, "Comfortable"]].map(([height, label]) => <button key={height} aria-pressed={layout.height === height} onClick={e => { setLayout(current => ({ ...current, height: Number(height) })); e.currentTarget.closest("details")?.removeAttribute("open"); }}>{label}</button>)}</div></details>
       <details className="loops-control-menu"><summary><Plus size={14} /> Add</summary><div><button onClick={e => { setNewPath({ name: "" }); e.currentTarget.closest("details")?.removeAttribute("open"); requestAnimationFrame(() => board.current?.querySelector<HTMLInputElement>(".loops-add-path-card input")?.scrollIntoView({ block: "center", behavior: "smooth" })); }}>Board</button><button onClick={e => { createStack(); e.currentTarget.closest("details")?.removeAttribute("open"); }}>Stack</button></div></details>
     </div></header>

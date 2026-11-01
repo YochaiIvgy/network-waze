@@ -2,12 +2,13 @@
 
 import { useEffect, useRef, useState, type CSSProperties, type DragEvent, type ReactNode } from "react";
 import { AlignLeft, ArrowUp, Check, CheckCheck, ChevronDown, Ellipsis, GripVertical, Pencil, Plus, Sparkles, Trash2, UserPlus, X } from "lucide-react";
+import { LoopDependencies, LoopDependencyControls, useDependencyTarget } from "./LoopDependencies";
 import { LoopsLayout } from "./LoopsLayout";
 import { PersonPicker } from "./LoopPersonPicker";
 import { StyledSelect } from "./ui/select";
 import { Button } from "./ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "./ui/dialog";
-import { LOOP_STATES, PATH_COLORS, PATH_PALETTE, pathDisplayColor, captureLoops, completeNext, loopsSchema, moveItem, needsMyMove, ownerName, recordLoop, planSteps, toggleStep, type LoopItem, type LoopPath, type LoopPerson } from "@/lib/loops";
+import { dependencyBlockers, cleanDependencies, restoreDependencies, LOOP_STATES, PATH_COLORS, PATH_PALETTE, pathDisplayColor, captureLoops, completeNext, loopsSchema, moveItem, needsMyMove, ownerName, recordLoop, planSteps, toggleStep, type LoopItem, type LoopPath, type LoopPerson } from "@/lib/loops";
 import type { ViewEntity } from "@/lib/view-model";
 
 type Drag = { type: "path" | "item"; id: string };
@@ -104,7 +105,8 @@ export function LoopsBoard({ entities, refreshPeople }: { entities: ViewEntity[]
     } finally { saving.current = false; }
   }
   function commit(next: LoopPath[]) {
-    if (!loopsSchema.safeParse(next).success) { setError("That change is too large to save. Shorten the text or split it into more loops; your input is still here."); return false; }
+    const validation = loopsSchema.safeParse(next);
+    if (!validation.success) { setError(validation.error.issues[0]?.message || "Could not save this change."); return false; }
     latest.current = next; setPaths(next); pending.current = true; keepDraft(next); setStatus("Saving…");
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => void flush(), 350);
@@ -120,10 +122,10 @@ export function LoopsBoard({ entities, refreshPeople }: { entities: ViewEntity[]
     if (!path || board.length < 2) return;
     if (path.items.length && !confirmed) { setConfirmDelete(id); return; }
     setConfirmDelete(null);
-    const next = board.filter(p => p.id !== id);
+    const next = cleanDependencies(board.filter(p => p.id !== id));
     if (!commit(next)) return;
     if (capturePath === id) setCapturePath(next[0].id);
-    setFeedback({ text: `Deleted “${path.name}”.`, undo: () => { const restored = [...latest.current!]; restored.splice(Math.min(index, restored.length), 0, path); commit(restored); } });
+    setFeedback({ text: `Deleted “${path.name}”.`, undo: () => { const restored = [...latest.current!]; restored.splice(Math.min(index, restored.length), 0, path); commit(restoreDependencies(restored, board, new Set(path.items.map(item => item.id)))); } });
   }
   function changeItem(id: string, patch: Partial<LoopItem>, move = "") {
     return commit(latest.current!.map(p => ({ ...p, items: p.items.map(item => item.id === id ? recordLoop({ ...item, ...patch }, item, move, people) : item) })));
@@ -137,8 +139,8 @@ export function LoopsBoard({ entities, refreshPeople }: { entities: ViewEntity[]
   function deleteItem(id: string) {
     const board = latest.current!; const pathIndex = board.findIndex(p => p.items.some(i => i.id === id)); if (pathIndex < 0) return;
     const { id: pathId, items } = board[pathIndex]; const index = items.findIndex(i => i.id === id); const item = items[index];
-    if (!commit(board.map(p => p.id === pathId ? { ...p, items: p.items.filter(i => i.id !== id) } : p))) return;
-    setFeedback({ text: `Deleted “${item.title}”.`, undo: () => commit(latest.current!.map(p => p.id === pathId ? { ...p, items: [...p.items.slice(0, index), item, ...p.items.slice(index)] } : p)) });
+    if (!commit(cleanDependencies(board.map(p => p.id === pathId ? { ...p, items: p.items.filter(i => i.id !== id) } : p)))) return;
+    setFeedback({ text: `Deleted “${item.title}”.`, undo: () => commit(restoreDependencies(latest.current!.map(p => p.id === pathId ? { ...p, items: [...p.items.slice(0, index), item, ...p.items.slice(index)] } : p), board, new Set([id]))) });
   }
   function setCleared(ids: Set<string>, clearedAt: string | null) {
     return commit(latest.current!.map(p => ({ ...p, items: p.items.map(i => ids.has(i.id) ? { ...i, clearedAt } : i) })));
@@ -150,6 +152,9 @@ export function LoopsBoard({ entities, refreshPeople }: { entities: ViewEntity[]
   }
   const checkedOnBoard = (path: LoopPath) => path.items.filter(i => i.resolved && !i.clearedAt);
   function resolve(id: string, resolved: boolean) {
+    const items = latest.current!.flatMap(path => path.items);
+    const item = items.find(item => item.id === id);
+    if (resolved && item && dependencyBlockers(item, items).length) { setError("Complete this task's prerequisites first, or remove the dependency."); return; }
     if (changeItem(id, resolved ? { resolved } : { resolved, clearedAt: null })) setFeedback({ text: resolved ? "Checked. This loop stays right here." : "Loop reopened and back on the board.", undo: resolved ? () => resolve(id, false) : undefined });
   }
   function capture(text: string, pathId: string) {
@@ -179,15 +184,16 @@ export function LoopsBoard({ entities, refreshPeople }: { entities: ViewEntity[]
   const now = new Date();
   const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
   const openItems = paths?.flatMap(p => p.items).filter(i => !i.resolved) ?? [];
-  const mine = openItems.filter(i => needsMyMove(i, today)).length;
-  const matches = (item: LoopItem) => (filter === "all" || (filter === "me" ? item.ownerId === "me" || (!!item.review && item.review <= today) : item.state === "waiting"));
+  const allItems = paths?.flatMap(path => path.items) ?? [];
+  const mine = openItems.filter(i => needsMyMove(i, today) && !dependencyBlockers(i, allItems).length).length;
+  const matches = (item: LoopItem) => (filter === "all" || (filter === "me" ? (item.ownerId === "me" || (!!item.review && item.review <= today)) && !dependencyBlockers(item, allItems).length : item.state === "waiting"));
 
   return <section className="loops-workspace compact-loops">
     {filter === "me" && <p className="loops-filter-note">Your next moves, plus loops due for review.</p>}
     {filter === "done" && <p className="loops-filter-note">Everything you’ve cleared off the board. Uncheck a loop to bring it back.</p>}
     {(error || backupError) && <div className="loops-error" role="alert">{error || backupError}<button onClick={() => void (paths ? flush() : load())}>Retry</button>{conflict && <button onClick={exportAndReload}>Keep a copy &amp; refresh</button>}</div>}
     {feedback?.undo && <div key={feedback.text} className="loops-feedback" role="status"><Check size={14} />{feedback.text}{feedback.undo && <button onClick={() => { feedback.undo!(); setFeedback(null); }}>Undo</button>}<button className="feedback-dismiss" aria-label="Dismiss update" onClick={() => setFeedback(null)}><X size={13} /></button></div>}
-    {paths && <LoopsLayout toolbar={<>    <div className="loops-heading"><div><h1>Loops<span className="loops-total">{openItems.length} open</span></h1></div></div>
+    {paths && <LoopDependencies paths={paths} onChange={commit}><LoopsLayout toolbar={<>    <div className="loops-heading"><div><h1>Loops<span className="loops-total">{openItems.length} open</span></h1></div></div>
     <div className="loops-toolbar"><div className="loops-filters">{([ ["all", "Everything", openItems.length], ["me", "Needs me", mine], ["waiting", "Waiting", openItems.filter(i => i.state === "waiting").length], ["done", "Done", paths?.flatMap(p => p.items).filter(i => i.clearedAt).length ?? 0] ] as const).map(([id, label, count]) => <button key={id} aria-pressed={filter === id} onClick={() => setFilter(id)}>{label}<span>{count}</span></button>)}</div><span className={`loops-save-indicator ${error ? "has-error" : ""}`} role="status" aria-label={status} title={status}>{status === "All changes saved" ? <Check size={14} /> : status === "Saving…" ? "Saving…" : status}</span></div>
 </>} key={layoutKey} paths={paths} storageKey={layoutKey} onChange={commit} dragPathId={drag?.type === "path" ? drag.id : null} onDragFinish={() => { setDrag(null); setOver(""); }} previewMatches={item => filter === "done" ? !!item.clearedAt : !item.resolved && !item.clearedAt && matches(item)}>
       {(path, index, organize) => <section key={path.id} className={`loop-path ${drag?.type === "path" && drag.id === path.id ? "is-dragging" : ""} ${over === path.id ? "drop-target" : ""}`} style={{ "--path-color": pathDisplayColor(path.color), ...(() => {
@@ -209,7 +215,7 @@ export function LoopsBoard({ entities, refreshPeople }: { entities: ViewEntity[]
           </>}
         </div></div>
       </section>}
-    </LoopsLayout>}
+    </LoopsLayout></LoopDependencies>}
     {paths && <CaptureDock key={`${draftPrefix}:capture`} draftKey={`${draftPrefix}:capture`} paths={paths} pathId={capturePath} onPathChange={setCapturePath} onCapture={text => capture(text, capturePath)} />}
     {(() => { const target = paths?.find(p => p.id === confirmDelete); const count = target?.items.length ?? 0; return <Dialog open={!!target} onOpenChange={open => { if (!open) setConfirmDelete(null); }}>
       <DialogContent>
@@ -359,6 +365,8 @@ function LoopRow({ item, fresh, pathId, paths, people, today, draftKey, refreshP
   const [editing, setEditing] = useState(false);
   const [notesOpen, setNotesOpen] = useState(false);
   const [leaving, setLeaving] = useState(false);
+  const connectionTarget = useDependencyTarget(item.id);
+  const blockers = dependencyBlockers(item, paths.flatMap(path => path.items));
   const hasNotes = !!item.context.trim();
   const due = !!item.review && item.review <= today;
   const activity = item.history.filter(h => h.event !== "move" && (h.event !== "updated" || h.text !== "Updated loop"));
@@ -366,8 +374,8 @@ function LoopRow({ item, fresh, pathId, paths, people, today, draftKey, refreshP
   useEffect(() => {
     if (fresh) row.current?.scrollIntoView({ block: "nearest", inline: "nearest", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
   }, [fresh]);
-  return <article ref={row} className={`loop-row ${needsMyMove(item, today) ? "needs-me" : ""} ${item.resolved ? "is-checked" : ""} ${fresh ? "is-new" : ""} ${leaving ? "is-leaving" : ""}`}>
-    <div className="loop-row-title"><button className="loop-grip" draggable aria-label={`Drag ${item.title}`} onDragStart={onDragStart} onDragEnd={onDragEnd}><GripVertical size={14} /></button><input type="checkbox" checked={item.resolved} aria-label={`${item.resolved ? "Reopen" : "Resolve"} ${item.title}`} title="Check or reopen this loop" onChange={onResolve} /><InlineText value={item.title} label={`Loop title: ${item.title}`} required maxLength={200} onSave={title => onChange({ title })} />{item.resolved && <button className="loop-clear" aria-label={`Move ${item.title} to Done`} title="Move off the board into Done" onClick={() => { setLeaving(true); setTimeout(onClear, 200); }}><CheckCheck size={13} />Clear</button>}<button className={`loop-row-action loop-notes-toggle ${hasNotes ? "has-notes" : ""}`} aria-expanded={notesOpen} aria-label={`${notesOpen ? "Hide" : hasNotes ? "Show" : "Add"} notes for ${item.title}`} title={notesOpen ? "Hide notes" : hasNotes ? "Show notes" : "Add notes"} onClick={() => setNotesOpen(v => !v)}><AlignLeft size={15} /></button><button className="loop-row-action" aria-label={`Edit ${item.title}`} title="Edit loop" onClick={() => setEditing(true)}><Ellipsis size={17} /></button></div>
+  return <article ref={row} data-loop-id={item.id} data-connection-target={connectionTarget} data-blocked={!item.resolved && blockers.length > 0} className={`loop-row ${needsMyMove(item, today) && !blockers.length ? "needs-me" : ""} ${item.resolved ? "is-checked" : ""} ${fresh ? "is-new" : ""} ${leaving ? "is-leaving" : ""}`}>
+    <div className="loop-row-title"><button className="loop-grip" draggable aria-label={`Drag ${item.title}`} onDragStart={onDragStart} onDragEnd={onDragEnd}><GripVertical size={14} /></button><input type="checkbox" checked={item.resolved} disabled={!item.resolved && blockers.length > 0} aria-label={`${item.resolved ? "Reopen" : "Resolve"} ${item.title}`} title={blockers.length && !item.resolved ? `Waiting for: ${blockers.map(i => i.title).join(", ")}` : "Check or reopen this loop"} onChange={onResolve} /><InlineText value={item.title} label={`Loop title: ${item.title}`} required maxLength={200} onSave={title => onChange({ title })} />{item.resolved && <button className="loop-clear" aria-label={`Move ${item.title} to Done`} title="Move off the board into Done" onClick={() => { setLeaving(true); setTimeout(onClear, 200); }}><CheckCheck size={13} />Clear</button>}<button className={`loop-row-action loop-notes-toggle ${hasNotes ? "has-notes" : ""}`} aria-expanded={notesOpen} aria-label={`${notesOpen ? "Hide" : hasNotes ? "Show" : "Add"} notes for ${item.title}`} title={notesOpen ? "Hide notes" : hasNotes ? "Show notes" : "Add notes"} onClick={() => setNotesOpen(v => !v)}><AlignLeft size={15} /></button><LoopDependencyControls item={item} /><button className="loop-row-action" aria-label={`Edit ${item.title}`} title="Edit loop" onClick={() => setEditing(true)}><Ellipsis size={17} /></button></div>
     {notesOpen ? <div className="loop-notes"><NotesBody value={item.context} label={`Notes for ${item.title}`} autoEdit={!hasNotes} onSave={context => onChange({ context })} onDone={text => { if (!text) setNotesOpen(false); }} /></div>
       : hasNotes && <button className="loop-notes-preview" title="Show notes" onClick={() => setNotesOpen(true)}><AlignLeft size={12} /><span>{notesPreview(item.context)}</span></button>}
     {!item.resolved && (item.state !== "action" || (item.ownerId && item.ownerId !== "me") || due) && <button className="loop-exception" onClick={() => setEditing(true)}>{item.state !== "action" && <><span className="loop-status-dot" style={{ background: stateOptions.find(s => s.value === item.state)?.color }} />{LOOP_STATES[item.state]}</>}{item.ownerId && item.ownerId !== "me" && <span>{ownerName(item, people)}</span>}{due && <span className="loop-due-dot">Review due</span>}</button>}

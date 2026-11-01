@@ -65,6 +65,7 @@ export const loopItemSchema = z
     context: z.string().max(4000),
     state: stateSchema,
   resolved: z.boolean(),
+  dependsOn: z.array(z.string().uuid()).max(2000).default([]),
   clearedAt: z.string().datetime().nullable().default(null),
   people: z.array(personSchema).max(50),
     ownerId: z.union([z.literal("me"), z.literal(""), z.string().uuid()]),
@@ -110,6 +111,8 @@ export const loopsSchema = z
     const ids = paths.flatMap((p) => [p.id, ...p.items.map((i) => i.id)]);
     if (new Set(ids).size !== ids.length)
       ctx.addIssue({ code: "custom", message: "Duplicate IDs in board." });
+    const dependencyError = validateDependencies(paths.flatMap(p => p.items));
+    if (dependencyError) ctx.addIssue({ code: "custom", message: dependencyError });
   });
 export type LoopItem = z.infer<typeof loopItemSchema>;
 export type LoopPath = z.infer<typeof loopPathSchema>;
@@ -123,6 +126,7 @@ export function newLoop(): LoopItem {
     context: "",
     state: "action",
     resolved: false,
+    dependsOn: [],
     clearedAt: null,
     people: [],
     ownerId: "me",
@@ -272,4 +276,62 @@ export function moveItem(
     }
     return { ...p, items };
   });
+}
+
+/** Dependencies point from a task to the prerequisites it must wait for. */
+export function validateDependencies(items: { id: string; dependsOn: string[] }[]): string | null {
+  const byId = new Map(items.map(item => [item.id, item]));
+  for (const item of items) {
+    if (new Set(item.dependsOn).size !== item.dependsOn.length) return "This connection already exists.";
+    if (item.dependsOn.some(id => !byId.has(id))) return "A connected task no longer exists.";
+  }
+  // Kahn's algorithm avoids recursion limits on long chains.
+  const remaining = new Map(items.map(item => [item.id, item.dependsOn.length]));
+  const next = new Map<string, string[]>();
+  items.forEach(item => item.dependsOn.forEach(id => next.set(id, [...(next.get(id) ?? []), item.id])));
+  const ready = items.filter(item => !item.dependsOn.length).map(item => item.id);
+  let count = 0;
+  for (let index = 0; index < ready.length; index++) {
+    count++;
+    for (const id of next.get(ready[index]) ?? []) {
+      remaining.set(id, remaining.get(id)! - 1);
+      if (!remaining.get(id)) ready.push(id);
+    }
+  }
+  return count === items.length ? null : "This would create a circular dependency.";
+}
+
+export function dependencyBlockers(item: LoopItem, items: LoopItem[]): LoopItem[] {
+  return items.filter(other => item.dependsOn.includes(other.id) && !other.resolved);
+}
+
+export function connectLoops(paths: LoopPath[], source: string, target: string): { paths: LoopPath[]; error?: string } {
+  const items = paths.flatMap(path => path.items);
+  if (source === target) return { paths, error: "A task cannot depend on itself." };
+  if (!items.some(item => item.id === source) || !items.some(item => item.id === target)) return { paths, error: "Task not found." };
+  if (items.find(item => item.id === target)!.dependsOn.includes(source)) return { paths, error: "This connection already exists." };
+  const next = paths.map(path => ({ ...path, items: path.items.map(item => item.id === target ? { ...item, dependsOn: [...item.dependsOn, source] } : item) }));
+  const error = validateDependencies(next.flatMap(path => path.items));
+  return error ? { paths, error } : { paths: next };
+}
+
+export function downstreamLoops(source: string, items: LoopItem[]): LoopItem[] {
+  const seen = new Set<string>([source]);
+  const queue = [source];
+  for (let index = 0; index < queue.length; index++) {
+    for (const item of items) if (!item.resolved && item.dependsOn.includes(queue[index]) && !seen.has(item.id)) {
+      seen.add(item.id); queue.push(item.id);
+    }
+  }
+  return items.filter(item => item.id !== source && seen.has(item.id));
+}
+
+/** Deleting a prerequisite removes its links; clearing it to Done does not. */
+export function cleanDependencies(paths: LoopPath[]): LoopPath[] {
+  const ids = new Set(paths.flatMap(path => path.items.map(item => item.id)));
+  return paths.map(path => ({ ...path, items: path.items.map(item => ({ ...item, dependsOn: item.dependsOn.filter(id => ids.has(id)) })) }));
+}
+export function restoreDependencies(paths: LoopPath[], before: LoopPath[], restored: Set<string>): LoopPath[] {
+  const prior = new Map(before.flatMap(path => path.items).map(item => [item.id, item]));
+  return cleanDependencies(paths.map(path => ({ ...path, items: path.items.map(item => ({ ...item, dependsOn: [...new Set([...item.dependsOn, ...(prior.get(item.id)?.dependsOn ?? []).filter(id => restored.has(id))])] })) })));
 }
