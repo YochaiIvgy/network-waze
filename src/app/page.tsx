@@ -341,9 +341,9 @@ export default function Home() {
           ))}</div>}
           <button className={`nav-item nav-section ${LOOP_VIEWS.includes(view) ? "section-selected" : ""}`} aria-label="Loops section" aria-expanded={loopsExpanded} title="Loops" onClick={() => setLoopsExpanded(!loopsExpanded)}><LoopIcon size={18} /><span>Loops</span><ChevronDown size={14} className={loopsExpanded ? "" : "collapsed"} /></button>
           {loopsExpanded && <div className="network-subnav">{LOOP_VIEWS.map(name => { const Icon = NAV[name]; return (
-            <button key={name} aria-label={name} title={name} aria-current={view === name ? "page" : undefined} className={`nav-item ${view === name ? "active" : ""}`} onClick={() => { nav(name); setNetworkExpanded(false); }}>
+            <button key={name} aria-label={name === "Tasks" ? "Loops" : name} title={name === "Tasks" ? "Loops" : name} aria-current={view === name ? "page" : undefined} className={`nav-item ${view === name ? "active" : ""}`} onClick={() => { nav(name); setNetworkExpanded(false); }}>
               <Icon size={18} />
-              <span>{name}</span>
+              <span>{name === "Tasks" ? "Loops" : name}</span>
             </button>
           ); })}</div>}
         </nav>
