@@ -1,12 +1,12 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type DragEvent, type ReactNode } from "react";
-import { ChevronDown, Layers, Plus, Ellipsis, GripVertical, X } from "lucide-react";
+import { ChevronDown, Layers, Plus, Ellipsis, GripVertical, LayoutGrid, Rows3, Check, X } from "lucide-react";
 import { type LoopPath, pathDisplayColor, PATH_COLORS } from "@/lib/loops";
 import { Button } from "./ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "./ui/dialog";
 
-type Layout = { height: number; expanded: Record<string, boolean>; emptyStacks?: { id: string; name: string }[] };
+type Layout = { arrangement: "grid" | "vertical"; height: number; expanded: Record<string, boolean>; emptyStacks?: { id: string; name: string }[] };
 
 function BoardSlot({ path, children }: { path: LoopPath; children: ReactNode }) {
   return <div data-layout-unit={path.id} className="loops-board-slot">{children}</div>;
@@ -19,7 +19,7 @@ export function LoopsLayout({ paths, storageKey, onChange, previewMatches, child
   previewMatches: (item: LoopPath["items"][number]) => boolean;
   children: (path: LoopPath, index: number, organize: () => void) => ReactNode;
 }) {
-  const [layout, setLayout] = useState<Layout>({ height: 360, expanded: {} });
+  const [layout, setLayout] = useState<Layout>({ arrangement: "grid", height: 360, expanded: {} });
   const [dragStack, setDragStack] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
   const [editor, setEditor] = useState<{ id: string; name: string; selected: string[] } | null>(null);
@@ -65,7 +65,7 @@ export function LoopsLayout({ paths, storageKey, onChange, previewMatches, child
     try {
       const saved = JSON.parse(localStorage.getItem(storageKey) ?? "null");
       if (saved && typeof saved.height === "number" && saved.expanded && typeof saved.expanded === "object") {
-        setLayout({ emptyStacks: Array.isArray(saved.emptyStacks) ? saved.emptyStacks.filter((s: { id?: unknown; name?: unknown }) => typeof s?.id === "string" && typeof s?.name === "string") : [], height: Math.max(260, Math.min(640, saved.height)), expanded: Object.fromEntries(Object.entries(saved.expanded).filter(([, value]) => typeof value === "boolean")) as Record<string, boolean> });
+        setLayout({ arrangement: saved.arrangement === "vertical" ? "vertical" : "grid", emptyStacks: Array.isArray(saved.emptyStacks) ? saved.emptyStacks.filter((s: { id?: unknown; name?: unknown }) => typeof s?.id === "string" && typeof s?.name === "string") : [], height: Math.max(260, Math.min(640, saved.height)), expanded: Object.fromEntries(Object.entries(saved.expanded).filter(([, value]) => typeof value === "boolean")) as Record<string, boolean> });
       }
     } catch { /* Use the default layout if browser storage is unavailable. */ }
     setReady(true);
@@ -133,7 +133,12 @@ export function LoopsLayout({ paths, storageKey, onChange, previewMatches, child
     setDropTarget(""); onDragFinish();
   }
   function dropZone(id: string, stack?: { id: string; name: string }, before?: string) {
-    const side = (e: DragEvent) => before && e.clientX > e.currentTarget.getBoundingClientRect().left + e.currentTarget.getBoundingClientRect().width / 2 ? "right" : "left";
+    const side = (e: DragEvent) => {
+      if (!before) return "left";
+      const rect = e.currentTarget.getBoundingClientRect();
+      const after = layout.arrangement === "vertical" ? e.clientY > rect.top + rect.height / 2 : e.clientX > rect.left + rect.width / 2;
+      return after ? "right" : "left";
+    };
     return { onDragOver: (e: DragEvent) => { if ((dragPathId || dragStack) && dragPathId !== before) { e.preventDefault(); e.stopPropagation(); e.dataTransfer.dropEffect = "move"; setDropTarget(before ? `${id}:${side(e)}` : id); } }, onDragLeave: (e: DragEvent) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDropTarget(""); }, onDrop: (e: DragEvent) => { if (dragPathId === before) { e.stopPropagation(); return; } receive(e, stack, before, side(e) === "right"); } };
 
   }
@@ -146,21 +151,23 @@ export function LoopsLayout({ paths, storageKey, onChange, previewMatches, child
   }
   return <>
     <header className="loops-command-bar">{toolbar}<div className="loops-command-actions">
-      <details className="loops-control-menu"><summary>View <ChevronDown size={13} /></summary><div><span>Spacing</span>{[[280, "Compact"], [360, "Comfortable"]].map(([height, label]) => <button key={height} aria-pressed={layout.height === height} onClick={e => { setLayout(current => ({ ...current, height: Number(height) })); e.currentTarget.closest("details")?.removeAttribute("open"); }}>{label}</button>)}</div></details>
+      <details className="loops-control-menu"><summary>View <ChevronDown size={13} /></summary><div><span>Layout</span>{(["grid", "vertical"] as const).map(arrangement => <button className="loops-view-option" key={arrangement} aria-pressed={layout.arrangement === arrangement} onClick={e => { setLayout(current => ({ ...current, arrangement })); e.currentTarget.closest("details")?.removeAttribute("open"); }}>{arrangement === "grid" ? <LayoutGrid size={14} /> : <Rows3 size={14} />}<span>{arrangement === "grid" ? "Grid" : "Vertical"}</span>{layout.arrangement === arrangement && <Check size={13} />}</button>)}<span>Spacing</span>{[[280, "Compact"], [360, "Comfortable"]].map(([height, label]) => <button key={height} aria-pressed={layout.height === height} onClick={e => { setLayout(current => ({ ...current, height: Number(height) })); e.currentTarget.closest("details")?.removeAttribute("open"); }}>{label}</button>)}</div></details>
       <details className="loops-control-menu"><summary><Plus size={14} /> Add</summary><div><button onClick={e => { setNewPath({ name: "" }); e.currentTarget.closest("details")?.removeAttribute("open"); requestAnimationFrame(() => board.current?.querySelector<HTMLInputElement>(".loops-add-path-card input")?.scrollIntoView({ block: "center", behavior: "smooth" })); }}>Board</button><button onClick={e => { createStack(); e.currentTarget.closest("details")?.removeAttribute("open"); }}>Stack</button></div></details>
     </div></header>
-    <div ref={board} className={`loops-board loops-spatial-board ${layout.height < 340 ? "is-compact" : ""}`} style={{ "--board-height": `${layout.height}px` } as CSSProperties}>
+    <div ref={board} className={`loops-board loops-spatial-board ${layout.arrangement === "vertical" ? "is-vertical" : ""} ${layout.height < 340 ? "is-compact" : ""}`} style={{ "--board-height": `${layout.height}px` } as CSSProperties}>
       {[...units, ...stacks.filter(stack => !paths.some(p => p.stack?.id === stack.id)).map(stack => ({ id: stack.id, stack } as LoopPath))].map((unit, unitIndex) => {
         if (!unit.stack) return <div key={unit.id} data-layout-unit={unit.id} className={`loops-path-drop ${dropTarget.startsWith(`${unit.id}:`) ? `insert-${dropTarget.split(":")[1]}` : ""}`} {...dropZone(unit.id, undefined, unit.id)}><BoardSlot path={unit}>{children(unit, paths.indexOf(unit), () => setDestination(unit))}</BoardSlot></div>;
         const stack = unit.stack; const members = paths.filter(p => p.stack?.id === stack.id); const expanded = !!layout.expanded[stack.id];
-        return <section key={stack.id} data-layout-unit={stack.id} ref={element => { if (element) anchors.current.set(stack.id, element); else anchors.current.delete(stack.id); }} {...dropZone(stack.id, stack)} className={`loops-stack ${dropTarget === stack.id ? "is-drop-target" : ""} ${expanded ? "is-expanded" : "is-collapsed"}`} style={{ "--stack-width": `${Math.max(325, members.length * 325 + Math.max(0, members.length - 1) * 16 + 26)}px` } as CSSProperties}>
-          <header className="loops-stack-header">
+        return <section key={stack.id} data-layout-unit={stack.id} ref={element => { if (element) anchors.current.set(stack.id, element); else anchors.current.delete(stack.id); }} {...dropZone(stack.id, stack)} className={`loops-stack ${dropTarget === stack.id ? "is-drop-target" : ""} ${expanded ? "is-expanded" : "is-collapsed"}`} style={{ "--stack-width": `${Math.max(300, members.length * 300 + Math.max(0, members.length - 1) * 16 + 26)}px` } as CSSProperties}>
+          <header className="loops-stack-header" onClick={e => { if (e.target instanceof Element && !e.target.closest("button, input, details")) toggle(stack.id); }}>
             {renaming === stack.id && <input className="loops-stack-inline-name" autoFocus aria-label="Stack name" defaultValue={stack.name} maxLength={100} onFocus={e => e.target.select()} onBlur={e => renameStack(stack, e.target.value)} onKeyDown={e => { if (e.key === "Enter") e.currentTarget.blur(); if (e.key === "Escape") setRenaming(null); }} />}
-            <button className="loop-grip" draggable aria-label={`Drag ${stack.name} stack`} onDragStart={e => { setDragStack(stack.id); e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", stack.id); const el = e.currentTarget.closest<HTMLElement>(".loops-stack"); if (el) e.dataTransfer.setDragImage(el, 24, 24); }} onDragEnd={() => { setDragStack(null); setDropTarget(""); }}><GripVertical size={14} /></button>
-            {renaming !== stack.id && <button className="loops-stack-name" onClick={() => setRenaming(stack.id)}>{stack.name}</button>}
-            <span className="loops-stack-count">{members.length} {members.length === 1 ? "board" : "boards"}</span>
-            <button className="loops-stack-toggle" aria-label={`Toggle ${stack.name}`} aria-expanded={expanded} aria-controls={`stack-${stack.id}`} onClick={() => toggle(stack.id)}><ChevronDown size={15} /></button>
-            <details className="loops-control-menu"><summary aria-label={`Options for ${stack.name}`}><Ellipsis size={16} /></summary><div><button onClick={e => { setEditor({ ...stack, selected: members.map(p => p.id) }); e.currentTarget.closest("details")?.removeAttribute("open"); }}>Manage boards</button><button disabled={!members.length || unitIndex === 0} onClick={() => moveStack(stack.id, -1)}>Move earlier</button><button disabled={!members.length || unitIndex === units.length - 1} onClick={() => moveStack(stack.id, 1)}>Move later</button></div></details>
+            <button className="loop-grip loops-stack-handle" draggable title="Drag stack" aria-label={`Drag ${stack.name} stack`} onDragStart={e => { setDragStack(stack.id); e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", stack.id); const el = e.currentTarget.closest<HTMLElement>(".loops-stack"); if (el) e.dataTransfer.setDragImage(el, 24, 24); }} onDragEnd={() => { setDragStack(null); setDropTarget(""); }}><Layers className="stack-handle-icon" size={15} /><GripVertical className="stack-handle-grip" size={15} /></button>
+            <button className="loops-stack-banner" aria-label={`${expanded ? "Collapse" : "Expand"} ${stack.name}`} aria-expanded={expanded} aria-controls={`stack-${stack.id}`} onClick={() => toggle(stack.id)}>
+              {renaming !== stack.id && <span className="loops-stack-name">{stack.name}</span>}
+              <span className="loops-stack-count">{members.length} {members.length === 1 ? "board" : "boards"}</span>
+              <ChevronDown size={15} />
+            </button>
+            <details className="loops-control-menu"><summary aria-label={`Options for ${stack.name}`}><Ellipsis size={16} /></summary><div><button onClick={e => { setRenaming(stack.id); e.currentTarget.closest("details")?.removeAttribute("open"); }}>Rename stack</button><button onClick={e => { setEditor({ ...stack, selected: members.map(p => p.id) }); e.currentTarget.closest("details")?.removeAttribute("open"); }}>Manage boards</button><button disabled={!members.length || unitIndex === 0} onClick={() => moveStack(stack.id, -1)}>Move earlier</button><button disabled={!members.length || unitIndex === units.length - 1} onClick={() => moveStack(stack.id, 1)}>Move later</button></div></details>
 
           </header>
           <div id={`stack-${stack.id}`} className="loops-stack-children" hidden={!expanded}>

@@ -8,9 +8,9 @@
 .loops-spatial-board .loop-path-header { flex-shrink: 0; z-index: 3; }
 .compact-loops .loops-spatial-board .loop-path-items { flex: 1; min-height: 0; overflow: auto; scrollbar-width: thin; padding: 0 22px 12px; overscroll-behavior: contain; }
 .compact-loops .loops-spatial-board .loop-row { padding-top: 12px; padding-bottom: 10px; }
-.loops-stack { position: relative; width: 325px; max-width: 100%; border: 1px solid var(--border); border-radius: 12px; background: var(--background); }
+.loops-stack { position: relative; width: 300px; max-width: 100%; border: 1px solid var(--border); border-radius: 12px; background: var(--background); }
 .loops-stack.is-collapsed { height: var(--board-height); display: flex; flex-direction: column; box-shadow: 4px 4px 0 0 var(--background), 4px 4px 0 1px var(--border), 8px 8px 0 0 var(--background), 8px 8px 0 1px var(--border); }
-.loops-stack.is-expanded { width: var(--stack-width); background: var(--subtle); }
+.loops-stack.is-expanded { width: var(--stack-width); }
 .loops-stack-header { display: flex; align-items: center; padding: 10px 12px; gap: 8px; }
 .loops-stack-toggle { display: flex; align-items: center; gap: 8px; min-width: 0; flex: 1; border: 0; background: none; text-align: left; padding: 3px 0; font-size: 13px; }
 .loops-stack-toggle strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -41,7 +41,7 @@
 .loops-stack-destinations { display: grid; gap: 8px; max-height: 350px; overflow-y: auto; }
 .loops-board-slot {
   position: relative;
-  width: 325px;
+  width: 300px;
   max-width: 100%;
   height: var(--board-height);
   flex: 0 0 auto;
@@ -403,8 +403,8 @@
   margin-bottom: -140px;
 }
 .compact-loops .loop-path {
-  width: 325px;
-  min-width: 325px;
+  width: 300px;
+  min-width: 300px;
 }
 .compact-loops .loop-path-header {
   padding: 11px 10px;
@@ -1228,12 +1228,12 @@
 .compact-loops .loop-row-title {
   position: relative;
 }
-/* The handle hangs in the gutter left of the checkbox so titles and trails keep their alignment. */
+/* Task cards reserve an internal gutter for the drag handle. */
 .compact-loops .loop-row-title > .loop-grip {
   position: absolute;
   top: 0;
-  left: -19px;
-  width: 16px;
+  left: -22px;
+  width: 20px;
   height: 24px;
   margin: 0;
   padding: 0;
@@ -1672,8 +1672,8 @@
   }
 }
 /* Board creation and drag affordances */
-.loops-path-drop { width: 325px; max-width: 100%; border-radius: 10px; }
-.loops-add-path-card { width: 325px; max-width: 100%; min-height: 100px; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 16px; border: 1px dashed var(--border); border-radius: 10px; background: var(--subtle); color: var(--muted); font-size: 13px; text-align: left; }
+.loops-path-drop { width: 300px; max-width: 100%; border-radius: 10px; }
+.loops-add-path-card { width: 300px; max-width: 100%; min-height: 100px; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 16px; border: 1px dashed var(--border); border-radius: 10px; background: var(--subtle); color: var(--muted); font-size: 13px; text-align: left; }
 .loops-add-path-card:hover { border-color: var(--green); color: var(--foreground); }
 form.loops-add-path-card { flex-direction: column; align-items: stretch; }
 .loops-add-path-card input { width: 100%; padding: 8px; background: var(--background); border: 1px solid var(--border); border-radius: 6px; color: var(--foreground); }
@@ -1685,7 +1685,7 @@ form.loops-add-path-card { flex-direction: column; align-items: stretch; }
 .compact-loops .loop-path.is-dragging { opacity: .4; border-style: dashed; }
 .loop-grip { cursor: grab; }
 .loop-grip:active { cursor: grabbing; }
-.loops-detach-hint { display: flex; align-items: center; justify-content: center; width: 325px; min-height: var(--board-height); padding: 24px; border: 2px dashed var(--border); border-radius: 10px; color: var(--muted); font-size: 13px; }
+.loops-detach-hint { display: flex; align-items: center; justify-content: center; width: 300px; min-height: var(--board-height); padding: 24px; border: 2px dashed var(--border); border-radius: 10px; color: var(--muted); font-size: 13px; }
 .compact-loops .loop-path-content > .loop-quick-capture { margin: 12px 0 0; padding: 8px 10px; border: 1px dashed var(--border); border-radius: 7px; background: var(--subtle); }
 .compact-loops .loop-path-content > .loop-quick-capture:focus-within { border-style: solid; border-color: var(--path-color); background: var(--background); }
 .compact-loops .loop-path-content > .loop-quick-capture textarea { min-height: 24px; padding: 3px 0; }
@@ -1743,3 +1743,75 @@ form.loops-add-path-card { flex-direction: column; align-items: stretch; }
 .loops-stack-summary-row > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .loops-stack-summary-row > small { margin-left: auto; padding-left: 8px; font-size: 11px; font-variant-numeric: tabular-nums; }
 .loops-stack-summary-more { display: block; padding: 6px 5px; font-size: 11px; color: var(--muted); }
+
+/* Narrower boards, distinct loop cards, and a quiet stack grouping. */
+.compact-loops .loops-spatial-board .loop-path-items { padding: 10px; }
+.compact-loops .loops-spatial-board .loop-row { margin: 0 0 8px; padding: 12px 10px 12px 30px; border: 1px solid var(--border); border-radius: 8px; background: var(--background); }
+.compact-loops .loops-spatial-board.is-compact .loop-row { padding: 8px 10px 8px 30px; }
+.compact-loops .loops-board-slot > .loop-path:not(:has(.loop-row, .loop-resolved-row)) { min-height: 0; }
+.compact-loops .loops-spatial-board .loop-add-button { margin-top: 0; padding: 9px 10px; }
+/* Both states share the same shell; expansion only reveals the boards. */
+.compact-loops .loops-stack {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--background);
+  box-shadow: 0 4px 0 -1px var(--background), 0 4px 0 0 var(--border);
+}
+.compact-loops .loops-stack.is-expanded.is-drop-target { background: color-mix(in srgb, var(--green) 7%, var(--background)); }
+
+/* The stack handle doubles as its visual identity. */
+.loops-stack-header .loops-stack-handle { position: relative; opacity: 1; display: grid; place-items: center; width: 28px; height: 28px; flex: 0 0 28px; padding: 0; border: 1px solid var(--border); border-radius: 7px; background: var(--background); color: var(--muted); }
+.loops-stack-handle .stack-handle-grip { display: none; }
+.loops-stack-handle:hover .stack-handle-icon, .loops-stack-handle:focus-visible .stack-handle-icon { display: none; }
+.loops-stack-handle:hover .stack-handle-grip, .loops-stack-handle:focus-visible .stack-handle-grip { display: block; }
+.loops-stack > .loops-stack-header .loops-stack-toggle { width: 26px; height: 26px; justify-content: center; border-radius: 6px; }
+.loops-stack > .loops-stack-header .loops-stack-toggle:hover { background: var(--subtle); }
+.loops-stack.is-expanded > .loops-stack-children { margin: 0 12px 12px; padding: 10px 0 0; border-top: 1px solid var(--border); }
+
+.loops-stack-header { cursor: pointer; }
+.loops-stack-banner { display: flex; align-items: center; gap: 10px; align-self: stretch; flex: 1; min-width: 0; border: 0; padding: 0; background: transparent; text-align: left; color: inherit; cursor: pointer; }
+.loops-stack-banner[aria-expanded="false"] > svg { transform: rotate(-90deg); }
+.loops-stack-banner > svg { color: var(--muted); transition: transform .2s ease; }
+.loops-stack-header:hover .loops-stack-banner > svg { color: var(--foreground); }
+@media(prefers-reduced-motion: reduce) { .loops-stack-banner > svg { transition: none; } }
+
+/* Vertical layout keeps stack membership while arranging every board in a column. */
+.loops-control-menu > div > .loops-view-option { display: flex; align-items: center; gap: 8px; }
+.loops-view-option > span { flex: 1; }
+.compact-loops .loops-board.loops-spatial-board.is-vertical { flex-direction: column; flex-wrap: nowrap; align-items: flex-start; max-width: none; gap: 20px; }
+.compact-loops .loops-spatial-board.is-vertical .loops-stack,
+.compact-loops .loops-spatial-board.is-vertical .loops-path-drop,
+.compact-loops .loops-spatial-board.is-vertical .loops-board-slot,
+.compact-loops .loops-spatial-board.is-vertical .loops-add-path-card,
+.compact-loops .loops-spatial-board.is-vertical .loops-detach-hint { width: fit-content; min-width: 0; max-width: 100%; }
+.compact-loops .loops-spatial-board.is-vertical .loops-stack-children { flex-direction: column; align-items: flex-start; }
+.loops-spatial-board.is-vertical .loops-path-drop.insert-left::before { top: -10px; bottom: auto; left: 0; right: 0; width: auto; height: 4px; }
+.loops-spatial-board.is-vertical .loops-path-drop.insert-right::after { bottom: -10px; top: auto; left: 0; right: 0; width: auto; height: 4px; }
+
+/* Vertical boards contain a responsive row of task cards. */
+.compact-loops .loops-spatial-board.is-vertical .loop-path-content { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 12px; }
+.loops-spatial-board.is-vertical .loop-card-slot { width: 280px; max-width: 100%; flex: 0 0 auto; min-width: 0; }
+.compact-loops .loops-spatial-board.is-vertical .loop-card-slot > .loop-row { margin: 0; }
+.loops-spatial-board.is-vertical .loop-path-content > .loop-earlier-done,
+.loops-spatial-board.is-vertical .loop-path-content > .loop-empty-line,
+.loops-spatial-board.is-vertical .loop-path-content > .loop-done-list { flex-basis: 100%; min-width: 0; }
+.loops-spatial-board.is-vertical .loop-done-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 280px)); gap: 12px; }
+.loops-spatial-board.is-vertical .loop-path-content > .loop-add-button { width: 120px; max-width: 100%; flex: 0 0 auto; align-self: flex-start; min-height: 44px; white-space: nowrap; }
+.loops-spatial-board.is-vertical .loop-path-content > .loop-add-row { width: 280px; max-width: 100%; flex: 0 0 auto; min-width: 0; }
+.loops-spatial-board.is-vertical .loop-card-slot.drop-before { border-top: 0; box-shadow: -3px 0 0 var(--green); border-radius: 8px; }
+
+/* The cards set each board's width; the available viewport only caps it. */
+.compact-loops .loops-spatial-board.is-vertical .loops-board-slot > .loop-path { width: var(--vertical-board-width, 302px); max-width: 100%; }
+.compact-loops .loops-spatial-board.is-vertical .loops-stack.is-collapsed { width: 300px; }
+.compact-loops .loops-spatial-board.is-vertical .loops-add-path-card,
+.compact-loops .loops-spatial-board.is-vertical .loops-detach-hint { width: 300px; }
+
+.compact-loops .loop-row-title > .loop-grip:hover { background: var(--subtle); color: var(--foreground); }
+.compact-loops .loop-row-title > .loop-grip:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
+
+.compact-loops .loops-spatial-board.is-vertical .loops-board-slot > .loop-path:has(.loop-path-content > .loop-add-row) { width: var(--vertical-compose-width, 302px); }
+/* Empty boards widen the existing action without changing its appearance. */
+.compact-loops .loops-spatial-board .loop-path-content:not(:has(.loop-card-slot, .loop-resolved-row)) > .loop-add-button {
+  width: 100%;
+  flex-basis: 100%;
+}
