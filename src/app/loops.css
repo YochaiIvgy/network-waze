@@ -1900,7 +1900,7 @@ form.loops-add-path-card { flex-direction: column; align-items: stretch; }
 .loop-dependency-wires g.is-invalid { color: var(--primary); }
 .loop-dependency-wires .wire-halo { stroke: var(--background); stroke-width: 6px; fill: none; opacity: .85; }
 .loop-dependency-wires .wire-line { stroke: currentColor; stroke-width: 1.8px; fill: none; stroke-linecap: round; stroke-linejoin: round; }
-.loop-dependency-wires .wire-arrow { stroke: currentColor; stroke-width: 1.8px; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+.loop-dependency-wires .wire-arrow { stroke: currentColor; stroke-width: 0.6px; fill: currentColor; stroke-linejoin: round; }
 .loop-dependency-wires .is-released .wire-arrow { opacity: .6; }
 .loop-dependency-wires .is-released .wire-line { stroke-dasharray: 4 4; opacity: .6; }
 .loop-dependency-wires .is-drawing .wire-line { stroke-width: 2.5px; opacity: 1; }
@@ -1913,3 +1913,70 @@ form.loops-add-path-card { flex-direction: column; align-items: stretch; }
 .loop-dependency-picker button strong { font-size: 13px; font-weight: 500; }
 .loop-dependency-picker button small { font-size: 11px; }
 .connection-empty { padding: 24px 12px; text-align: center; color: var(--muted); font-size: 12px; }
+
+/* Connections move in the same coordinate space as their cards. */
+.loops-dependency-surface { display: block; position: relative; min-width: 0; }
+.loop-dependency-wires { position: absolute; width: 100%; height: 100%; inset: 0; }
+.connection-display-control { display: inline-flex; align-items: center; gap: 3px; padding: 3px; border: 1px solid var(--border); border-radius: 8px; background: var(--subtle); }
+.connection-display-control > svg { margin-left: 5px; }
+.connection-display-control > span { font-size: 11px; margin: 0 6px 0 2px; }
+.loops-dependency-toolbar .connection-display-control button { padding: 4px 8px; border-radius: 5px; font-size: 11px; }
+.loops-dependency-toolbar .connection-display-control button[aria-pressed="true"] { background: var(--background); color: var(--foreground); box-shadow: 0 1px 3px #00000012; }
+.connection-chains-button { border: 1px solid var(--border) !important; border-radius: 7px; padding: 6px 9px !important; }
+.chain-explorer { width: min(1200px, 94vw) !important; max-width: 94vw !important; height: min(780px, 88vh); display: flex; flex-direction: column; padding: 24px; }
+.chain-explorer [data-slot="dialog-header"] { padding-right: 24px; }
+.chain-explorer-body { display: flex; min-height: 0; flex: 1; gap: 20px; }
+.chain-explorer-canvas { min-width: 0; flex: 1; overflow: auto; }
+.chain-map-section { border: 1px solid var(--border); border-radius: 12px; overflow: hidden; margin-bottom: 16px; }
+.chain-map-section > header { display: flex; align-items: center; gap: 8px; padding: 14px 16px; border-bottom: 1px solid var(--border); }
+.chain-map-section > header i { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.chain-map-section > header strong { font-size: 12px; flex: 1; }
+.chain-map-section > header span { color: var(--muted); font-size: 11px; white-space: nowrap; }
+.chain-map-scroll { overflow: auto; background: var(--subtle); }
+.chain-map { position: relative; }
+.chain-map > svg { position: absolute; inset: 0; pointer-events: none; }
+.chain-task { position: absolute; width: 220px; height: 104px; text-align: left; padding: 10px 12px; border: 1px solid var(--border); border-top: 3px solid; border-radius: 8px; background: var(--background); display: flex; flex-direction: column; gap: 5px; }
+.chain-task[aria-pressed="true"] { outline: 2px solid var(--foreground); outline-offset: 3px; }
+.chain-task small { font-size: 10px; color: var(--muted); }
+.chain-task strong { font-size: 12px; line-height: 16px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.chain-task span { display: flex; align-items: center; gap: 5px; font-size: 10px; color: var(--muted); margin-top: auto; }
+.chain-inspector { width: 240px; flex-shrink: 0; overflow: auto; border-left: 1px solid var(--border); padding-left: 18px; }
+.chain-inspector h3 { font-size: 15px; font-weight: 600; margin-bottom: 20px; }
+.chain-inspector h4 { font-size: 11px; color: var(--muted); margin: 18px 0 8px; }
+.chain-inspector p { color: var(--muted); font-size: 12px; }
+.chain-inspector-row { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--border); }
+.chain-inspector-row button:first-child { flex: 1; text-align: left; font-size: 12px; }
+.chain-inspector-row button:last-child { padding: 6px; border-radius: 5px; color: var(--muted); }
+.chain-inspector-row button:hover { color: var(--foreground); background: var(--subtle); }
+.chain-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; min-height: 260px; color: var(--muted); }
+.chain-empty button { display: flex; align-items: center; gap: 6px; color: var(--foreground); }
+@media (max-width: 700px) { .chain-explorer-body { flex-direction: column; overflow: auto; } .chain-explorer-canvas { flex: none; } .chain-inspector { width: 100%; flex-shrink: 0; border-left: 0; padding-left: 0; } }
+.loop-chain-count { display: grid; place-items: center; min-width: 20px; height: 20px; margin: 3px 1px; border-radius: 5px; background: var(--subtle); border: 1px solid var(--border); font-size: 10px; font-weight: 600; color: var(--green); }
+.loop-chain-count.is-blocked { color: #a27122; background: color-mix(in srgb, #b88a3d 10%, var(--background)); }
+.chains-page-view { padding: 22px 0 90px; }
+.chains-view-description { font-size: 12px; color: var(--muted); margin-bottom: 20px; }
+.chains-page-view .chain-explorer-body { align-items: flex-start; }
+.chains-page-view .chain-explorer-canvas { overflow: visible; }
+.chains-page-view .chain-inspector { position: sticky; top: 90px; max-height: calc(100vh - 120px); }
+@media (max-width: 700px) { .chains-page-view .chain-explorer-canvas { width: 100%; } .chains-page-view .chain-inspector { position: static; max-height: none; } }
+/* The count and connector share one slot, so connecting never narrows the title. */
+.loop-row-title > .loop-dependency-controls { width: 24px; flex: 0 0 24px; }
+.loop-row-title .loop-connect-handle { position: relative; flex: 0 0 24px; }
+.loop-row .loop-connect-handle.has-connections { opacity: 1; }
+.loop-connect-handle.has-connections > svg { opacity: 0; }
+.loop-connect-handle.has-connections .loop-chain-count { position: absolute; inset: 3px 2px; margin: 0; pointer-events: none; }
+.loop-connect-handle.has-connections:hover > svg,
+.loop-connect-handle.has-connections:focus-visible > svg { opacity: 1; }
+.loop-connect-handle.has-connections:hover .loop-chain-count,
+.loop-connect-handle.has-connections:focus-visible .loop-chain-count { visibility: hidden; }
+/* Generous invisible hit target around each connector, without blocking the canvas. */
+.connection-hit-area { pointer-events: stroke; stroke: transparent; stroke-width: 14px; fill: none; cursor: pointer; }
+.connection-hit-area:hover, .connection-hit-area:focus-visible { stroke: currentColor; stroke-opacity: .16; outline: none; }
+.connection-remove-explanation { color: var(--muted); font-size: 12px; line-height: 1.6; }
+.connection-delete-button { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 10px 14px; border: 1px solid var(--border); border-radius: 7px; color: var(--primary); }
+.connection-delete-button:hover { background: var(--subtle); }
+.connection-inline-action { pointer-events: auto; overflow: visible; opacity: 1; }
+.connection-inline-remove { display: flex; align-items: center; justify-content: center; gap: 7px; width: 176px; height: 36px; border: 1px solid var(--border); border-radius: 8px; background: var(--background); color: var(--foreground); font-family: inherit; font-size: 12px; line-height: 1.2; box-shadow: 0 4px 16px #00000020; cursor: pointer; }
+.connection-inline-remove:hover { color: var(--primary); background: var(--subtle); }
+.connection-inline-remove:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.chain-map > svg:has(.connection-inline-action) { z-index: 2; }

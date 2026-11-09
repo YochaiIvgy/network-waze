@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, type CSSProperties, type DragEvent, type ReactNode } from "react";
 import { AlignLeft, ArrowUp, Check, CheckCheck, ChevronDown, Ellipsis, GripVertical, Pencil, Plus, Sparkles, Trash2, UserPlus, X } from "lucide-react";
-import { LoopDependencies, LoopDependencyControls, useDependencyTarget } from "./LoopDependencies";
+import { LoopDependencies, LoopChainsView, LoopDependencyControls, useDependencyTarget, useDependencyHover } from "./LoopDependencies";
 import { LoopsLayout } from "./LoopsLayout";
 import { PersonPicker } from "./LoopPersonPicker";
 import { StyledSelect } from "./ui/select";
@@ -12,7 +12,7 @@ import { dependencyBlockers, cleanDependencies, restoreDependencies, LOOP_STATES
 import type { ViewEntity } from "@/lib/view-model";
 
 type Drag = { type: "path" | "item"; id: string };
-type Filter = "all" | "me" | "waiting" | "done";
+type Filter = "all" | "me" | "waiting" | "done" | "chains";
 const CAPTURED_ONE = ["Out of your head, onto the board.", "Captured. One less thing to hold.", "Got it — it’s on the board now.", "Loop opened. Your head just got lighter."];
 const pick = (options: string[]) => options[Math.floor(Math.random() * options.length)];
 const stateOptions = Object.entries(LOOP_STATES).map(([value, label], index) => ({ value, label, color: ["#36866b", "#c39330", "#8b63bd", "#3986bd"][index] }));
@@ -193,8 +193,8 @@ export function LoopsBoard({ entities, refreshPeople }: { entities: ViewEntity[]
     {filter === "done" && <p className="loops-filter-note">Everything you’ve cleared off the board. Uncheck a loop to bring it back.</p>}
     {(error || backupError) && <div className="loops-error" role="alert">{error || backupError}<button onClick={() => void (paths ? flush() : load())}>Retry</button>{conflict && <button onClick={exportAndReload}>Keep a copy &amp; refresh</button>}</div>}
     {feedback?.undo && <div key={feedback.text} className="loops-feedback" role="status"><Check size={14} />{feedback.text}{feedback.undo && <button onClick={() => { feedback.undo!(); setFeedback(null); }}>Undo</button>}<button className="feedback-dismiss" aria-label="Dismiss update" onClick={() => setFeedback(null)}><X size={13} /></button></div>}
-    {paths && <LoopDependencies paths={paths} onChange={commit}><LoopsLayout toolbar={<>    <div className="loops-heading"><div><h1>Loops<span className="loops-total">{openItems.length} open</span></h1></div></div>
-    <div className="loops-toolbar"><div className="loops-filters">{([ ["all", "Everything", openItems.length], ["me", "Needs me", mine], ["waiting", "Waiting", openItems.filter(i => i.state === "waiting").length], ["done", "Done", paths?.flatMap(p => p.items).filter(i => i.clearedAt).length ?? 0] ] as const).map(([id, label, count]) => <button key={id} aria-pressed={filter === id} onClick={() => setFilter(id)}>{label}<span>{count}</span></button>)}</div><span className={`loops-save-indicator ${error ? "has-error" : ""}`} role="status" aria-label={status} title={status}>{status === "All changes saved" ? <Check size={14} /> : status === "Saving…" ? "Saving…" : status}</span></div>
+    {paths && <LoopDependencies paths={paths} onChange={commit}><LoopsLayout content={filter === "chains" ? <LoopChainsView /> : undefined} toolbar={<>    <div className="loops-heading"><div><h1>Loops<span className="loops-total">{openItems.length} open</span></h1></div></div>
+    <div className="loops-toolbar"><div className="loops-filters">{([ ["all", "Everything", openItems.length], ["me", "Needs me", mine], ["waiting", "Waiting", openItems.filter(i => i.state === "waiting").length], ["done", "Done", paths?.flatMap(p => p.items).filter(i => i.clearedAt).length ?? 0] ] as const).map(([id, label, count]) => <button key={id} aria-pressed={filter === id} onClick={() => setFilter(id)}>{label}<span>{count}</span></button>)}<button aria-pressed={filter === "chains"} onClick={() => setFilter("chains")}>Chains</button></div><span className={`loops-save-indicator ${error ? "has-error" : ""}`} role="status" aria-label={status} title={status}>{status === "All changes saved" ? <Check size={14} /> : status === "Saving…" ? "Saving…" : status}</span></div>
 </>} key={layoutKey} paths={paths} storageKey={layoutKey} onChange={commit} dragPathId={drag?.type === "path" ? drag.id : null} onDragFinish={() => { setDrag(null); setOver(""); }} previewMatches={item => filter === "done" ? !!item.clearedAt : !item.resolved && !item.clearedAt && matches(item)}>
       {(path, index, organize) => <section key={path.id} className={`loop-path ${drag?.type === "path" && drag.id === path.id ? "is-dragging" : ""} ${over === path.id ? "drop-target" : ""}`} style={{ "--path-color": pathDisplayColor(path.color), ...(() => {
         const shown = path.items.filter(i => !i.clearedAt && matches(i));
@@ -366,6 +366,7 @@ function LoopRow({ item, fresh, pathId, paths, people, today, draftKey, refreshP
   const [notesOpen, setNotesOpen] = useState(false);
   const [leaving, setLeaving] = useState(false);
   const connectionTarget = useDependencyTarget(item.id);
+  const hoverDependency = useDependencyHover();
   const blockers = dependencyBlockers(item, paths.flatMap(path => path.items));
   const hasNotes = !!item.context.trim();
   const due = !!item.review && item.review <= today;
@@ -374,7 +375,7 @@ function LoopRow({ item, fresh, pathId, paths, people, today, draftKey, refreshP
   useEffect(() => {
     if (fresh) row.current?.scrollIntoView({ block: "nearest", inline: "nearest", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
   }, [fresh]);
-  return <article ref={row} data-loop-id={item.id} data-connection-target={connectionTarget} data-blocked={!item.resolved && blockers.length > 0} className={`loop-row ${needsMyMove(item, today) && !blockers.length ? "needs-me" : ""} ${item.resolved ? "is-checked" : ""} ${fresh ? "is-new" : ""} ${leaving ? "is-leaving" : ""}`}>
+  return <article ref={row} onMouseEnter={() => hoverDependency?.(item.id)} onMouseLeave={() => hoverDependency?.(null)} onFocus={() => hoverDependency?.(item.id)} onBlur={e => { if (!e.currentTarget.contains(e.relatedTarget) && !e.currentTarget.matches(":hover")) hoverDependency?.(null); }} data-loop-id={item.id} data-connection-target={connectionTarget} data-blocked={!item.resolved && blockers.length > 0} className={`loop-row ${needsMyMove(item, today) && !blockers.length ? "needs-me" : ""} ${item.resolved ? "is-checked" : ""} ${fresh ? "is-new" : ""} ${leaving ? "is-leaving" : ""}`}>
     <div className="loop-row-title"><button className="loop-grip" draggable aria-label={`Drag ${item.title}`} onDragStart={onDragStart} onDragEnd={onDragEnd}><GripVertical size={14} /></button><input type="checkbox" checked={item.resolved} disabled={!item.resolved && blockers.length > 0} aria-label={`${item.resolved ? "Reopen" : "Resolve"} ${item.title}`} title={blockers.length && !item.resolved ? `Waiting for: ${blockers.map(i => i.title).join(", ")}` : "Check or reopen this loop"} onChange={onResolve} /><InlineText value={item.title} label={`Loop title: ${item.title}`} required maxLength={200} onSave={title => onChange({ title })} />{item.resolved && <button className="loop-clear" aria-label={`Move ${item.title} to Done`} title="Move off the board into Done" onClick={() => { setLeaving(true); setTimeout(onClear, 200); }}><CheckCheck size={13} />Clear</button>}<button className={`loop-row-action loop-notes-toggle ${hasNotes ? "has-notes" : ""}`} aria-expanded={notesOpen} aria-label={`${notesOpen ? "Hide" : hasNotes ? "Show" : "Add"} notes for ${item.title}`} title={notesOpen ? "Hide notes" : hasNotes ? "Show notes" : "Add notes"} onClick={() => setNotesOpen(v => !v)}><AlignLeft size={15} /></button><LoopDependencyControls item={item} /><button className="loop-row-action" aria-label={`Edit ${item.title}`} title="Edit loop" onClick={() => setEditing(true)}><Ellipsis size={17} /></button></div>
     {notesOpen ? <div className="loop-notes"><NotesBody value={item.context} label={`Notes for ${item.title}`} autoEdit={!hasNotes} onSave={context => onChange({ context })} onDone={text => { if (!text) setNotesOpen(false); }} /></div>
       : hasNotes && <button className="loop-notes-preview" title="Show notes" onClick={() => setNotesOpen(true)}><AlignLeft size={12} /><span>{notesPreview(item.context)}</span></button>}

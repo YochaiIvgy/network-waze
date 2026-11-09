@@ -13,7 +13,8 @@ function BoardSlot({ path, children }: { path: LoopPath; children: ReactNode }) 
   return <div data-layout-unit={path.id} className="loops-board-slot">{children}</div>;
 }
 
-export function LoopsLayout({ paths, storageKey, onChange, previewMatches, children, dragPathId, onDragFinish, toolbar }: {
+export function LoopsLayout({ paths, storageKey, onChange, previewMatches, children, dragPathId, onDragFinish, toolbar, content }: {
+  content?: ReactNode;
   toolbar: ReactNode;
   dragPathId: string | null; onDragFinish: () => void;
   paths: LoopPath[]; storageKey: string; onChange: (paths: LoopPath[]) => boolean;
@@ -151,11 +152,11 @@ export function LoopsLayout({ paths, storageKey, onChange, previewMatches, child
       : <button className="loops-add-path-card" onClick={() => setNewPath({ stack, name: "" })}><Plus size={16} /> Add board</button>;
   }
   return <>
-    <header className="loops-command-bar">{toolbar}<div className="loops-command-actions"><LoopDependencyToolbar />
+    <header className="loops-command-bar">{toolbar}{!content && <div className="loops-command-actions"><LoopDependencyToolbar />
       <details className="loops-control-menu"><summary>View <ChevronDown size={13} /></summary><div><span>Layout</span>{(["grid", "vertical"] as const).map(arrangement => <button className="loops-view-option" key={arrangement} aria-pressed={layout.arrangement === arrangement} onClick={e => { setLayout(current => ({ ...current, arrangement })); e.currentTarget.closest("details")?.removeAttribute("open"); }}>{arrangement === "grid" ? <LayoutGrid size={14} /> : <Rows3 size={14} />}<span>{arrangement === "grid" ? "Grid" : "Vertical"}</span>{layout.arrangement === arrangement && <Check size={13} />}</button>)}<span>Spacing</span>{[[280, "Compact"], [360, "Comfortable"]].map(([height, label]) => <button key={height} aria-pressed={layout.height === height} onClick={e => { setLayout(current => ({ ...current, height: Number(height) })); e.currentTarget.closest("details")?.removeAttribute("open"); }}>{label}</button>)}</div></details>
       <details className="loops-control-menu"><summary><Plus size={14} /> Add</summary><div><button onClick={e => { setNewPath({ name: "" }); e.currentTarget.closest("details")?.removeAttribute("open"); requestAnimationFrame(() => board.current?.querySelector<HTMLInputElement>(".loops-add-path-card input")?.scrollIntoView({ block: "center", behavior: "smooth" })); }}>Board</button><button onClick={e => { createStack(); e.currentTarget.closest("details")?.removeAttribute("open"); }}>Stack</button></div></details>
-    </div></header>
-    <div ref={board} className={`loops-board loops-spatial-board ${layout.arrangement === "vertical" ? "is-vertical" : ""} ${layout.height < 340 ? "is-compact" : ""}`} style={{ "--board-height": `${layout.height}px` } as CSSProperties}>
+    </div>}</header>
+    {content ?? <div ref={board} className={`loops-board loops-spatial-board ${layout.arrangement === "vertical" ? "is-vertical" : ""} ${layout.height < 340 ? "is-compact" : ""}`} style={{ "--board-height": `${layout.height}px` } as CSSProperties}>
       {[...units, ...stacks.filter(stack => !paths.some(p => p.stack?.id === stack.id)).map(stack => ({ id: stack.id, stack } as LoopPath))].map((unit, unitIndex) => {
         if (!unit.stack) return <div key={unit.id} data-layout-unit={unit.id} className={`loops-path-drop ${dropTarget.startsWith(`${unit.id}:`) ? `insert-${dropTarget.split(":")[1]}` : ""}`} {...dropZone(unit.id, undefined, unit.id)}><BoardSlot path={unit}>{children(unit, paths.indexOf(unit), () => setDestination(unit))}</BoardSlot></div>;
         const stack = unit.stack; const members = paths.filter(p => p.stack?.id === stack.id); const expanded = !!layout.expanded[stack.id];
@@ -189,7 +190,7 @@ export function LoopsLayout({ paths, storageKey, onChange, previewMatches, child
         </section>;
       })}
       <div className={`loops-board-create ${dropTarget === "outside" ? "is-drop-target" : ""}`} {...dropZone("outside")} >{dragPathId ? <span className="loops-detach-hint">Drop here to move out of a stack</span> : pathComposer()}</div>
-    </div>
+    </div>}
     <Dialog open={!!destination} onOpenChange={open => { if (!open) setDestination(null); }}><DialogContent>
       <DialogHeader><DialogTitle>Organize “{destination?.name}”</DialogTitle><DialogDescription>Keep related boards together in an expandable stack.</DialogDescription></DialogHeader>
       <div className="loops-stack-destinations">{stacks.map(stack => <Button key={stack.id} variant="outline" disabled={stack.id === destination?.stack?.id} onClick={() => { if (onChange(paths.map(p => p.id === destination?.id ? { ...p, stack } : p))) setDestination(null); }}><Layers size={14} />{stack.name}{stack.id === destination?.stack?.id ? " · current" : ""}</Button>)}
