@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode, type PointerEvent as ReactPointerEvent } from "react";
-import { ArrowRight, Check, GitBranch, Link2, LockKeyhole, Plus, Search, Unlink, X } from "lucide-react";
+import { ArrowRight, Check, GitBranch, LockKeyhole, Plus, Search, Unlink, X } from "lucide-react";
 import { connectLoops, dependencyBlockers, downstreamLoops, type LoopItem, type LoopPath } from "@/lib/loops";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "./ui/dialog";
 
@@ -11,14 +11,25 @@ type DependencyContextValue = {
   toolbar: ReactNode;
   target: string | null;
   invalid: boolean;
-  start: (event: ReactPointerEvent<HTMLButtonElement>, id: string) => void;
+  start: (event: ReactPointerEvent<HTMLButtonElement>, id: string, side: EdgeSide) => void;
   choose: (id: string) => void;
   remove: (source: string, target: string) => void;
   hover: (id: string | null) => void;
   inspect: (id: string) => void;
 };
 const DependencyContext = createContext<DependencyContextValue | null>(null);
-type Wire = { key: string; x1: number; y1: number; x2: number; y2: number; released: boolean; vertical?: boolean; color: string };
+type EdgeSide = "top" | "right" | "bottom" | "left";
+const edgeVectors = { top: [0, -1], right: [1, 0], bottom: [0, 1], left: [-1, 0] } as const;
+function edgePoint(rect: DOMRect, side: EdgeSide) {
+  return { x: side === "left" ? rect.left : side === "right" ? rect.right : rect.left + rect.width / 2, y: side === "top" ? rect.top : side === "bottom" ? rect.bottom : rect.top + rect.height / 2 };
+}
+function nearestEdge(rect: DOMRect, x: number, y: number): EdgeSide {
+  return (Object.keys(edgeVectors) as EdgeSide[]).sort((a, b) => {
+    const p = edgePoint(rect, a), q = edgePoint(rect, b);
+    return Math.hypot(p.x - x, p.y - y) - Math.hypot(q.x - x, q.y - y);
+  })[0];
+}
+type Wire = { key: string; x1: number; y1: number; x2: number; y2: number; released: boolean; vertical?: boolean; startSide?: EdgeSide; endSide?: EdgeSide; color: string };
 
 const CHAIN_COLORS = ["#6875d9", "#269b94", "#c36996", "#bc8736", "#8c6bc5", "#378cb6"];
 
@@ -45,22 +56,17 @@ function chainColors(items: LoopItem[]) {
   }
   return colors;
 }
-type ConnectionDrag = { source: string; x: number; y: number; originX: number; originY: number; target: string | null };
+type ConnectionDrag = { source: string; side: EdgeSide; pointerId: number; moved: boolean; x: number; y: number; originX: number; originY: number; target: string | null };
 
 export function LoopDependencies({ paths, onChange, children }: { paths: LoopPath[]; onChange: (paths: LoopPath[]) => boolean; children: ReactNode }) {
   const root = useRef<HTMLDivElement>(null);
+  const wireLayer = useRef<SVGSVGElement>(null);
   const [drag, setDrag] = useState<ConnectionDrag | null>(null);
   const dragRef = useRef<ConnectionDrag | null>(null);
-  const [hovered, setHovered] = useState<string | null>(null);
-  const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  function hover(id: string | null) {
-    if (hoverTimer.current) clearTimeout(hoverTimer.current);
-    if (id) setHovered(id);
-    else hoverTimer.current = setTimeout(() => setHovered(null), 250);
-  }
-  useEffect(() => () => { if (hoverTimer.current) clearTimeout(hoverTimer.current); }, []);
+  const [hovered, hover] = useState<string | null>(null);
   const [visibility, setVisibility] = useState<"off" | "hover" | "all">("hover");
   const show = visibility === "all";
+  const showWires = show || (visibility === "hover" && hovered !== null) || drag !== null;
   const [chainView, setChainView] = useState<string | null>(null);
   const [chooser, setChooser] = useState<string | null>(null);
   const [query, setQuery] = useState("");
@@ -81,29 +87,30 @@ export function LoopDependencies({ paths, onChange, children }: { paths: LoopPat
     return true;
   }
   function choose(id: string) { setChooser(id); setQuery(""); }
-  function start(event: ReactPointerEvent<HTMLButtonElement>, id: string) {
-    if (event.button !== 0) return;
+  function start(event: ReactPointerEvent<HTMLButtonElement>, id: string, side: EdgeSide) {
+    if (event.button !== 0 || dragRef.current) return;
     event.preventDefault(); event.stopPropagation();
     event.currentTarget.setPointerCapture(event.pointerId);
-    const value = { source: id, x: event.clientX, y: event.clientY, originX: event.clientX, originY: event.clientY, target: null };
+    const value = { source: id, side, pointerId: event.pointerId, moved: false, x: event.clientX, y: event.clientY, originX: event.clientX, originY: event.clientY, target: null };
     dragRef.current = value; setDrag(value); setNotice("");
   }
   useEffect(() => {
     if (!drag?.source) return;
     const move = (event: PointerEvent) => {
-      const current = dragRef.current; if (!current) return;
+      const current = dragRef.current; if (!current || event.pointerId !== current.pointerId) return;
       const hit = document.elementFromPoint(event.clientX, event.clientY)?.closest<HTMLElement>("[data-loop-id]");
-      const target = hit && root.current?.contains(hit) ? hit.dataset.loopId ?? null : null;
-      const next = { ...current, x: event.clientX, y: event.clientY, target };
+      const target = hit && hit.dataset.loopId !== current.source && root.current?.contains(hit) ? hit.dataset.loopId ?? null : null;
+      const next = { ...current, x: event.clientX, y: event.clientY, target, moved: current.moved || Math.hypot(event.clientX - current.originX, event.clientY - current.originY) >= 5 };
       dragRef.current = next; setDrag(next);
       if (event.clientY > window.innerHeight - 55) window.scrollBy(0, 15);
       else if (event.clientY < 80) window.scrollBy(0, -15);
     };
     const cancel = () => { dragRef.current = null; setDrag(null); };
-    const end = () => {
-      const current = dragRef.current; if (!current) return;
-      if (Math.hypot(current.x - current.originX, current.y - current.originY) < 5) setChainView(current.source);
-      else if (current.target) connect(current.source, current.target);
+    const end = (event: PointerEvent) => {
+      const current = dragRef.current; if (!current || event.pointerId !== current.pointerId) return;
+      const hit = document.elementFromPoint(event.clientX, event.clientY)?.closest<HTMLElement>("[data-loop-id]");
+      if (!current.moved) choose(current.source);
+      else if (hit && root.current?.contains(hit) && hit.dataset.loopId !== current.source) connect(current.source, hit.dataset.loopId!);
       cancel();
     };
     const key = (event: KeyboardEvent) => { if (event.key === "Escape") cancel(); };
@@ -119,17 +126,26 @@ export function LoopDependencies({ paths, onChange, children }: { paths: LoopPat
   }, [drag?.source]);
 
   useEffect(() => {
-    if (!show && (!hovered || visibility === "off") && !drag) { setWires([]); return; }
+    if (!showWires) { setWires([]); return; }
     let frame = 0;
     const colors = chainColors(items);
     const update = () => {
-      const origin = root.current?.getBoundingClientRect();
-      if (!origin) return;
+      const matrix = wireLayer.current?.getScreenCTM();
+      if (!root.current || !matrix) {
+        frame = requestAnimationFrame(update);
+        return;
+      }
+      // A fixed SVG can still have an offset/scaled containing block. Convert
+      // both DOM bounds and pointer coordinates through its actual screen matrix.
+      const inverse = matrix.inverse();
+      const localPoint = (x: number, y: number) => new DOMPoint(x, y).matrixTransform(inverse);
       const rects = new Map<string, DOMRect>();
       root.current?.querySelectorAll<HTMLElement>("[data-loop-id]").forEach(element => {
         if (element.getClientRects().length) {
           const rect = element.getBoundingClientRect();
-          rects.set(element.dataset.loopId!, new DOMRect(rect.left - origin.left, rect.top - origin.top, rect.width, rect.height));
+          const topLeft = localPoint(rect.left, rect.top);
+          const bottomRight = localPoint(rect.right, rect.bottom);
+          rects.set(element.dataset.loopId!, new DOMRect(topLeft.x, topLeft.y, bottomRight.x - topLeft.x, bottomRight.y - topLeft.y));
         }
       });
       const next: Wire[] = [];
@@ -141,19 +157,26 @@ export function LoopDependencies({ paths, onChange, children }: { paths: LoopPat
           const forward = vertical ? to.top > from.top : to.left > from.left;
           next.push({ key: `${source}:${item.id}`, vertical, color: colors.get(source) ?? CHAIN_COLORS[0],
             x1: vertical ? from.left + from.width / 2 : forward ? from.right : from.left,
-            y1: vertical ? forward ? from.bottom : from.top : from.top + 25,
+            y1: vertical ? forward ? from.bottom : from.top : from.top + from.height / 2,
             x2: vertical ? to.left + to.width / 2 : forward ? to.left : to.right,
-            y2: vertical ? forward ? to.top : to.bottom : to.top + 25,
+            y2: vertical ? forward ? to.top : to.bottom : to.top + to.height / 2,
             released: !!items.find(i => i.id === source)?.resolved });
         }
       }
       const from = drag && rects.get(drag.source);
-      if (drag && from) next.push({ key: "drawing", x1: from.right - 4, y1: from.top + 25, x2: drag.x - origin.left, y2: drag.y - origin.top, released: false, color: colors.get(drag.source) ?? CHAIN_COLORS[0] });
+      if (drag && from) {
+        const start = edgePoint(from, drag.side);
+        const pointer = localPoint(drag.x, drag.y);
+        const target = drag.target && rects.get(drag.target);
+        const endSide = target ? nearestEdge(target, pointer.x, pointer.y) : undefined;
+        const end = target && endSide ? edgePoint(target, endSide) : pointer;
+        next.push({ key: "drawing", x1: start.x, y1: start.y, x2: end.x, y2: end.y, startSide: drag.side, endSide, released: false, color: colors.get(drag.source) ?? CHAIN_COLORS[0] });
+      }
       setWires(previous => JSON.stringify(previous) === JSON.stringify(next) ? previous : next);
       frame = requestAnimationFrame(update);
     };
     update(); return () => cancelAnimationFrame(frame);
-  }, [paths, drag, hovered, show, visibility]);
+  }, [paths, drag, hovered, show, showWires, visibility]);
   const blocked = items.filter(i => !i.resolved && dependencyBlockers(i, items).length);
   const bottlenecks = items.filter(i => !i.resolved).map(item => ({ item, count: downstreamLoops(item.id, items).length })).filter(entry => entry.count).sort((a, b) => b.count - a.count);
   const invalid = drag?.target ? connectLoops(paths, drag.source, drag.target).error : undefined;
@@ -171,25 +194,33 @@ export function LoopDependencies({ paths, onChange, children }: { paths: LoopPat
     <div ref={root} className={`loops-dependency-surface ${drag ? "is-connecting" : ""}`} data-connection-target={drag?.target ?? ""}>
 
       {children}
-      {drag && <div className={`loop-connect-hint ${invalid ? "is-invalid" : ""}`} role="status">{invalid || "Drop on the task that should wait · Esc to cancel"}</div>}
-      {!!wires.length && <svg className="loop-dependency-wires">{wires.map(wire => {
+      {drag && <div className={`loop-connect-hint ${invalid ? "is-invalid" : ""}`} role="status">{invalid || (drag.target ? `Release to connect → ${items.find(item => item.id === drag.target)?.title} · Esc to cancel` : "Drop on the task that should wait · Esc to cancel")}</div>}
+      <svg ref={wireLayer} className="loop-dependency-wires">{showWires && wires.map(wire => {
         const drawing = wire.key === "drawing";
         const bend = Math.max(35, Math.abs(wire.vertical ? wire.y2 - wire.y1 : wire.x2 - wire.x1) / 2);
         const direction = (wire.vertical ? wire.y2 >= wire.y1 : wire.x2 >= wire.x1) ? 1 : -1;
         // Give the arrow a straight approach instead of bending through its tip.
-        const tipX = wire.x2 - (wire.vertical ? 0 : direction * 3);
-        const tipY = wire.y2 - (wire.vertical ? direction * 3 : 0);
+        let tipX = wire.x2 - (wire.vertical ? 0 : direction * 3);
+        let tipY = wire.y2 - (wire.vertical ? direction * 3 : 0);
         const baseX = tipX - (wire.vertical ? 0 : direction * 6);
         const baseY = tipY - (wire.vertical ? direction * 6 : 0);
         const lead = Math.min(12, Math.abs(wire.vertical ? wire.y2 - wire.y1 : wire.x2 - wire.x1) / 5);
         const approachX = baseX - (wire.vertical ? 0 : direction * lead);
         const approachY = baseY - (wire.vertical ? direction * lead : 0);
-        const d = wire.vertical
+        let d = wire.vertical
           ? `M ${wire.x1} ${wire.y1} C ${wire.x1} ${wire.y1 + bend * direction}, ${approachX} ${approachY - bend * direction}, ${approachX} ${approachY} L ${baseX} ${baseY}`
           : `M ${wire.x1} ${wire.y1} C ${wire.x1 + bend * direction} ${wire.y1}, ${approachX - bend * direction} ${approachY}, ${approachX} ${approachY} L ${baseX} ${baseY}`;
-        const angle = wire.vertical ? direction * 90 : direction > 0 ? 0 : 180;
+        let angle = wire.vertical ? direction * 90 : direction > 0 ? 0 : 180;
+        if (wire.startSide) {
+          const [sx, sy] = edgeVectors[wire.startSide];
+          const [ex, ey] = wire.endSide ? edgeVectors[wire.endSide] : [-sx, -sy];
+          const length = Math.max(40, Math.min(180, Math.hypot(wire.x2 - wire.x1, wire.y2 - wire.y1) * .45));
+          d = `M ${wire.x1} ${wire.y1} C ${wire.x1 + sx * length} ${wire.y1 + sy * length}, ${wire.x2 + ex * length} ${wire.y2 + ey * length}, ${wire.x2 + ex * 7} ${wire.y2 + ey * 7}`;
+          angle = Math.atan2(-ey, -ex) * 180 / Math.PI;
+          tipX = wire.x2; tipY = wire.y2;
+        }
         return <g key={wire.key} style={{ color: drawing && invalid ? "var(--primary)" : wire.color }} className={`${wire.released ? "is-released" : "is-waiting"} ${drawing ? "is-drawing" : ""} ${drawing && invalid ? "is-invalid" : ""}`}><path className="wire-halo" d={d} /><path className="wire-line" d={d} /><path className="wire-arrow" d="M -6 -3 L 0 0 L -6 3 Z" transform={`translate(${tipX} ${tipY}) rotate(${angle})`} /><circle cx={wire.x1} cy={wire.y1} r="3" />{!drawing && !drag && <ConnectionHitArea d={d} source={items.find(item => item.id === wire.key.split(":")[0])!} target={items.find(item => item.id === wire.key.split(":")[1])!} onHover={hover} onRemove={(source, target) => { if (onChange(paths.map(path => ({ ...path, items: path.items.map(item => item.id === target ? { ...item, dependsOn: item.dependsOn.filter(id => id !== source) } : item) })))) setNotice("Connection removed."); }} />}</g>;
-      })}</svg>}
+      })}</svg>
     </div>
     <ChainExplorer paths={paths} focus={chainView} onClose={() => setChainView(null)} onConnect={id => { setChainView(null); choose(id); }} onRemove={(source, target) => {
       onChange(paths.map(path => ({ ...path, items: path.items.map(item => item.id === target ? { ...item, dependsOn: item.dependsOn.filter(id => id !== source) } : item) })));
@@ -306,9 +337,14 @@ export function LoopDependencyControls({ item }: { item: LoopItem }) {
   if (!context) return null;
   const total = item.dependsOn.length + context.items.filter(other => other.dependsOn.includes(item.id)).length;
   const blocked = !item.resolved && dependencyBlockers(item, context.items).length > 0;
-  return <div className="loop-dependency-controls">
-    <button className={`loop-connect-handle ${total > 0 ? "has-connections" : ""}`} title="Click to explore chain · Drag to connect" aria-label={`Explore chain for ${item.title}${total ? `, ${total} connections` : ""}`} onPointerDown={e => context.start(e, item.id)} onClick={e => { if (e.detail === 0) context.inspect(item.id); }}><Link2 size={14} />{total > 0 && <span className={`loop-chain-count ${blocked ? "is-blocked" : ""}`}>{total}</span>}</button>
-  </div>;
+  if (!total) return null;
+  return <button className={`loop-chain-count loop-chain-inspect ${blocked ? "is-blocked" : ""}`} title="Explore chain" aria-label={`Explore chain for ${item.title}, ${total} connections`} onClick={() => context.inspect(item.id)}>{total}</button>;
+}
+
+export function LoopConnectionHandles({ item }: { item: LoopItem }) {
+  const context = useContext(DependencyContext);
+  if (!context) return null;
+  return <>{(["top", "right", "bottom", "left"] as const).map(side => <button key={side} className={`loop-edge-handle edge-${side}`} title="Drag to connect or click to choose a task" aria-label={`Connect from ${item.title}, ${side} edge`} onPointerDown={event => context.start(event, item.id, side)} onClick={event => { if (event.detail === 0) context.choose(item.id); }}><span /></button>)}</>;
 }
 
 export function useDependencyTarget(id: string) {

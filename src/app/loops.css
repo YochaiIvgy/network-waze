@@ -1808,6 +1808,26 @@ form.loops-add-path-card { flex-direction: column; align-items: stretch; }
   width: 100%;
   flex-basis: 100%;
 }
+/* Edge ports stay outside card content; the larger hit area makes dragging forgiving. */
+.loop-edge-handle { position: absolute; z-index: 5; display: grid; place-items: center; width: 24px; height: 24px; padding: 0; border: 0; background: transparent; cursor: crosshair; touch-action: none; }
+.loop-edge-handle > span { width: 9px; height: 9px; border: 2px solid #6875d9; border-radius: 50%; background: var(--background); box-shadow: 0 0 0 3px var(--background); transition: transform .15s ease, background .15s ease; pointer-events: none; }
+.loop-edge-handle.edge-top { top: -12px; left: calc(50% - 12px); }
+.loop-edge-handle.edge-bottom { bottom: -12px; left: calc(50% - 12px); }
+.loop-edge-handle.edge-left { left: -12px; top: calc(50% - 12px); }
+.loop-edge-handle.edge-right { right: -12px; top: calc(50% - 12px); }
+.loop-edge-handle:hover > span, .loop-edge-handle:focus-visible > span { transform: scale(1.35); background: #6875d9; }
+.loop-edge-handle:focus-visible { outline: 2px solid #6875d9; outline-offset: 1px; border-radius: 50%; }
+.is-connecting .loop-row { cursor: crosshair; }
+.loop-row[data-connection-target="valid"] .loop-edge-handle > span { border-color: var(--green); background: var(--green); }
+.loop-row[data-connection-target="invalid"] .loop-edge-handle > span { border-color: var(--primary); }
+.loop-row-title > .loop-chain-inspect { flex: 0 0 auto; cursor: pointer; margin: 3px 0; }
+@media (hover: hover) and (pointer: fine) {
+  .loop-edge-handle { opacity: 0; pointer-events: none; transition: opacity .15s ease; }
+  .loop-row:hover > .loop-edge-handle, .loop-row:focus-within > .loop-edge-handle, .is-connecting .loop-edge-handle { opacity: 1; pointer-events: auto; }
+  .compact-loops .loop-row-title:not(:has(> .loop-chain-inspect)) > .loop-title-tools { right: var(--loop-menu-offset); }
+}
+@media (prefers-reduced-motion: reduce) { .loop-edge-handle, .loop-edge-handle > span { transition: none; } }
+
 /* Task connections and prerequisite state. */
 .loops-dependency-surface { display: contents; }
 .loops-dependency-toolbar { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding: 8px 0; color: var(--muted); font-size: 11px; }
