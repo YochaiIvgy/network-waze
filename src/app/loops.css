@@ -1101,14 +1101,7 @@
 .compact-loops .loop-step-trail .trail-current .loop-trail-mark {
   box-shadow: none;
 }
-.compact-loops
-  .loop-step-trail
-  .trail-step:has(.trail-person-menu)
-  .loop-inline-text {
-  padding-right: 52px;
-}
 .compact-loops .trail-step-people {
-  padding-right: 52px;
   font-size: 11px;
   color: var(--loop-secondary);
 }
@@ -1221,6 +1214,9 @@
 .loop-row-action:hover {
   background: var(--subtle);
   color: var(--foreground);
+}
+.loop-title-tools {
+  display: contents;
 }
 .compact-loops .loop-row-title {
   gap: 5px;
@@ -1655,10 +1651,7 @@
   color: var(--foreground);
   background: color-mix(in srgb, var(--foreground) 7%, transparent);
 }
-.compact-loops
-  .loop-step-trail
-  .trail-step:has(.trail-person-menu)
-  .loop-inline-text {
+.compact-loops .trail-step:has(.trail-person-menu) .loop-inline-text {
   padding-right: 78px;
 }
 .compact-loops .trail-step-people {
@@ -1969,6 +1962,99 @@ form.loops-add-path-card { flex-direction: column; align-items: stretch; }
 .loop-connect-handle.has-connections:focus-visible > svg { opacity: 1; }
 .loop-connect-handle.has-connections:hover .loop-chain-count,
 .loop-connect-handle.has-connections:focus-visible .loop-chain-count { visibility: hidden; }
+
+@media (hover: hover) and (pointer: fine) {
+  .compact-loops .loop-row-title {
+    --loop-menu-offset: 29px; /* Menu button and title gap. */
+    --loop-tool-fade: 18px;
+  }
+  .compact-loops .loop-title-tools {
+    position: absolute;
+    z-index: 1;
+    top: 0;
+    right: calc(var(--loop-menu-offset) + 24px);
+    display: flex;
+    align-items: center;
+    height: 26px;
+    background: var(--background);
+  }
+  .compact-loops .loop-row-title > .loop-dependency-controls:not(:has(.has-connections)) {
+    position: absolute;
+    top: 0;
+    right: var(--loop-menu-offset);
+    background: var(--background);
+  }
+  .compact-loops .loop-row-title > :is(.loop-title-tools, .loop-dependency-controls:not(:has(.has-connections)))::before {
+    content: "";
+    position: absolute;
+    inset: 0 100% 0 auto;
+    width: var(--loop-tool-fade);
+    background: linear-gradient(to right, transparent, var(--background));
+    pointer-events: none;
+  }
+  .compact-loops .loop-title-tools,
+  .compact-loops .loop-row-title > .loop-dependency-controls:not(:has(.has-connections)) {
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.18s ease;
+  }
+  .compact-loops .loop-row-title:is(:hover, :focus-within):not(:has(> .loop-inline-text:focus)) >
+    :is(.loop-title-tools, .loop-dependency-controls:not(:has(.has-connections))),
+  .compact-loops .is-connecting .loop-row-title > .loop-dependency-controls:not(:has(.has-connections)) {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  .compact-loops .loop-title-tools :is(.loop-clear, .loop-notes-toggle),
+  .compact-loops .loop-row-title > .loop-dependency-controls:not(:has(.has-connections)) .loop-connect-handle {
+    opacity: 1;
+  }
+
+  .compact-loops .loop-step-trail .trail-step > div > :is(.loop-inline-text, p, .trail-step-people) {
+    padding-right: 3px;
+  }
+  .compact-loops .trail-step > div {
+    --trail-tool-width: 24px;
+    --trail-tool-background: var(--background);
+  }
+  .compact-loops .trail-step > div:is(:hover, :focus-within) {
+    --trail-tool-background: var(--subtle);
+  }
+  .compact-loops .trail-step > div:has(> .trail-person-menu) {
+    --trail-tool-width: 74px;
+  }
+  .compact-loops .trail-step > div::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: calc(var(--trail-tool-width) + 18px);
+    height: 24px;
+    background: linear-gradient(to right, transparent, var(--trail-tool-background) 18px);
+    border-radius: 4px;
+    pointer-events: none;
+  }
+  .compact-loops .trail-step > div::before,
+  .compact-loops .trail-step :is(.trail-remove, .trail-notes-toggle, .trail-person-menu > summary) {
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.18s ease;
+  }
+  .compact-loops .trail-step:not(:has(> div > .loop-inline-text:focus)):is(:hover, :focus-within, :has(.trail-person-menu[open], .trail-notes-toggle[aria-expanded="true"])) {
+    > div::before,
+    & :is(.trail-remove, .trail-notes-toggle, .trail-person-menu > summary) {
+      opacity: 1;
+    }
+    & :is(.trail-remove, .trail-notes-toggle, .trail-person-menu > summary) {
+      pointer-events: auto;
+    }
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .compact-loops .trail-step > div::before,
+  .compact-loops :is(.loop-title-tools, .loop-row-title > .loop-dependency-controls, .trail-remove, .trail-notes-toggle, .trail-person-menu > summary) {
+    transition: none;
+  }
+}
 /* Generous invisible hit target around each connector, without blocking the canvas. */
 .connection-hit-area { pointer-events: stroke; stroke: transparent; stroke-width: 14px; fill: none; cursor: pointer; }
 .connection-hit-area:hover, .connection-hit-area:focus-visible { stroke: currentColor; stroke-opacity: .16; outline: none; }
