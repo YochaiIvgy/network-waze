@@ -3,8 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Network, Users, Building2, Route, AudioLines, Search, Plus, ArrowUpRight, ArrowRight,
-  ChevronDown, Sun, Moon, SlidersHorizontal, X, Sparkles, Check, Link2, Settings2,
-  GitMerge, CircleHelp, Gauge, Quote as QuoteIcon, Infinity as LoopIcon, PanelLeftClose, PanelLeftOpen, Waypoints,
+  ChevronDown, Sun, Moon, SlidersHorizontal, X, Sparkles, Check, Link2, Settings,
+  GitMerge, Gauge, Quote as QuoteIcon, Waypoints, Infinity as LoopIcon,
   ListChecks, Workflow,
 } from "lucide-react";
 import { EntityManager } from "@/components/EntityManager";
@@ -26,13 +26,19 @@ const NAV = {
   "Ask your network": Sparkles,
   Meetings: AudioLines,
   "Entity review": GitMerge,
-  Settings: Settings2,
+  Settings,
   Tasks: ListChecks,
   Plans: Workflow,
 } as const;
 
 type ViewName = keyof typeof NAV;
+type SidebarSection = "Links" | "Loops";
+const SIDEBAR_SECTIONS = [
+  { name: "Links", Icon: Waypoints },
+  { name: "Loops", Icon: LoopIcon },
+] as const;
 const LOOP_VIEWS: ViewName[] = ["Tasks", "Plans"];
+const LINK_VIEWS = (Object.keys(NAV) as ViewName[]).filter(name => !LOOP_VIEWS.includes(name) && name !== "Settings");
 const inLinks = (v: string) => !LOOP_VIEWS.includes(v as ViewName) && v !== "Settings";
 /** `?view=Loops` predates the Tasks / Plans split. */
 const requestedView = (search: string) => {
@@ -87,8 +93,8 @@ const pct = (n: number) => `${Math.round(n * 100)}%`;
 export default function Home() {
   const [g, setG] = useState<ViewGraph>(EMPTY);
   const [view, setView] = useState<ViewName>("Network");
-  const [networkExpanded, setNetworkExpanded] = useState(true);
-  const [loopsExpanded, setLoopsExpanded] = useState(true);
+  const lastLinksView = useRef<ViewName>("Network");
+  const lastLoopsView = useRef<ViewName>("Tasks");
   const [detailOpen, setDetailOpen] = useState(false);
   const [selected, setSelected] = useState("");
   const [q, setQ] = useState("");
@@ -96,6 +102,8 @@ export default function Home() {
   const [filter, setFilter] = useState("All entities");
   const [dark, setDark] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarPreview, setSidebarPreview] = useState<SidebarSection | null>(null);
+  const previewCloseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [modal, setModal] = useState("");
   const [notice, setNotice] = useState("");
   const [loading, setLoading] = useState(true);
@@ -155,14 +163,14 @@ export default function Home() {
     const isDark = localStorage.getItem("waze-theme") === "dark";
     setDark(isDark);
     document.documentElement.classList.toggle("dark", isDark);
-    setSidebarCollapsed(localStorage.getItem("waze-sidebar") === "collapsed");
+    const preference = localStorage.getItem("waze-sidebar");
+    setSidebarCollapsed(preference === "collapsed" || matchMedia("(max-width: 700px)").matches);
     void load();
     const p = new URLSearchParams(location.search);
     // Views are deep-linkable, so a particular screen can be shared or bookmarked.
     const requested = requestedView(location.search);
     if (requested) {
       setView(requested);
-      setNetworkExpanded(inLinks(requested));
     }
     if (p.has("connected")) {
       setView("Meetings");
@@ -242,18 +250,86 @@ export default function Home() {
     localStorage.setItem("waze-theme", next ? "dark" : "light");
   }
 
-  function toggleSidebar() {
+  useEffect(() => {
+    if (inLinks(view)) lastLinksView.current = view;
+    if (LOOP_VIEWS.includes(view)) lastLoopsView.current = view;
+  }, [view]);
+
+  const cancelPreviewClose = useCallback(() => {
+    if (previewCloseTimer.current === null) return;
+    clearTimeout(previewCloseTimer.current);
+    previewCloseTimer.current = null;
+  }, []);
+
+  useEffect(() => cancelPreviewClose, [cancelPreviewClose]);
+
+  const toggleSidebar = useCallback(() => {
     const next = !sidebarCollapsed;
+    cancelPreviewClose();
+    setSidebarPreview(null);
     setSidebarCollapsed(next);
-    localStorage.setItem("waze-sidebar", next ? "collapsed" : "expanded");
+    if (!matchMedia("(max-width: 700px)").matches) {
+      localStorage.setItem("waze-sidebar", next ? "collapsed" : "expanded");
+    }
+  }, [sidebarCollapsed, cancelPreviewClose]);
+
+  useEffect(() => {
+    function handleSidebarShortcut(event: KeyboardEvent) {
+      if (event.defaultPrevented || event.isComposing || !event.ctrlKey || !event.shiftKey ||
+          event.altKey || event.metaKey || event.key.toLowerCase() !== "s") return;
+      event.preventDefault();
+      if (!event.repeat) toggleSidebar();
+    }
+    window.addEventListener("keydown", handleSidebarShortcut);
+    return () => window.removeEventListener("keydown", handleSidebarShortcut);
+  }, [toggleSidebar]);
+
+  useEffect(() => {
+    if (!sidebarPreview) return;
+    const dismiss = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      cancelPreviewClose();
+      setSidebarPreview(null);
+    };
+    window.addEventListener("keydown", dismiss);
+    return () => window.removeEventListener("keydown", dismiss);
+  }, [sidebarPreview, cancelPreviewClose]);
+
+  function showSidebarPreview(section: SidebarSection) {
+    if (!sidebarCollapsed) return;
+    cancelPreviewClose();
+    setSidebarPreview(section);
+  }
+
+  function schedulePreviewClose() {
+    if (!sidebarPreview) return;
+    cancelPreviewClose();
+    // Give the pointer time to cross the gap from the rail to the pane.
+    previewCloseTimer.current = setTimeout(() => {
+      previewCloseTimer.current = null;
+      setSidebarPreview(null);
+    }, 220);
+  }
+
+  function openSection(section: SidebarSection) {
+    const next = section === "Links" ? lastLinksView.current : lastLoopsView.current;
+    cancelPreviewClose();
+    setSidebarPreview(null);
+    setSidebarCollapsed(false);
+    if (view !== next) nav(next);
+  }
+
+  function selectSidebarView(next: ViewName) {
+    cancelPreviewClose();
+    setSidebarPreview(null);
+    if (view !== next) nav(next);
+    if (matchMedia("(max-width: 700px)").matches) setSidebarCollapsed(true);
   }
 
   useEffect(() => {
     const restoreView = () => {
       const requested = requestedView(location.search) ?? "Network";
       setView(requested);
-      setNetworkExpanded(inLinks(requested));
-      if (LOOP_VIEWS.includes(requested)) setLoopsExpanded(true);
       setQ("");
       setFilter("All entities");
       setDetailOpen(false);
@@ -263,9 +339,9 @@ export default function Home() {
   }, []);
 
   function nav(v: ViewName) {
+    cancelPreviewClose();
+    setSidebarPreview(null);
     setView(v);
-    if (inLinks(v)) setNetworkExpanded(true);
-    if (LOOP_VIEWS.includes(v)) setLoopsExpanded(true);
     setDetailOpen(false);
     if (v === "People" || v === "Organizations") {
       const type = v === "People" ? "person" : "organization";
@@ -305,96 +381,104 @@ export default function Home() {
 
   const stored = new Map(g.meetings.filter((m) => m.externalId).map((m) => [m.externalId!, m]));
 
+  const sidebarSection = sidebarPreview ?? (LOOP_VIEWS.includes(view) ? "Loops" : "Links");
+
   return (
     <div className={`app-shell ${sidebarCollapsed ? "sidebar-collapsed" : ""}`}>
-      <aside className="sidebar">
-        <div className="brand">
+      <nav className="app-rail" aria-label="App sections">
+        <button
+          type="button"
+          className="rail-button app-logo"
+          onClick={toggleSidebar}
+          aria-label="Toggle sidebar"
+          aria-controls="workspace-sidebar"
+          aria-expanded={!sidebarCollapsed}
+          aria-keyshortcuts="Control+Shift+S"
+        >
           <img src="/46c.png" alt="" />
-          <span>46C Group</span>
+          <svg className="sidebar-toggle-icon" aria-hidden="true" width="19" height="19" viewBox="0 0 16 16" fill="none" stroke="currentColor">
+            <rect x="2" y="3" width="12" height="10" rx="2" />
+            <path d="M6 3v10" />
+          </svg>
+          <span className="sidebar-toggle-tooltip" aria-hidden="true">
+            Toggle sidebar <kbd>Ctrl+Shift+S</kbd>
+          </span>
+        </button>
+        {SIDEBAR_SECTIONS.map(({ name, Icon }) => (
           <button
-            className="icon-button sidebar-toggle"
-            onClick={toggleSidebar}
-            aria-label={sidebarCollapsed ? "Expand sidebar" : "Minimize sidebar"}
-            aria-expanded={!sidebarCollapsed}
-            title={sidebarCollapsed ? "Expand sidebar" : "Minimize sidebar"}
+            key={name}
+            className="rail-button"
+            aria-label={name}
+            aria-current={(name === "Links" ? inLinks(view) : LOOP_VIEWS.includes(view)) ? "true" : undefined}
+            aria-controls="workspace-sidebar"
+            aria-expanded={sidebarSection === name && (!sidebarCollapsed || sidebarPreview !== null)}
+            data-tooltip={name}
+            onPointerEnter={event => {
+              if (event.pointerType === "mouse" && event.buttons === 0) showSidebarPreview(name);
+            }}
+            onPointerLeave={schedulePreviewClose}
+            onClick={() => openSection(name)}
           >
-            {sidebarCollapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
+            <Icon size={21} aria-hidden="true" />
+          </button>
+        ))}
+        <div className="rail-bottom">
+          <button className="rail-button" onClick={theme} aria-label="Switch color theme" data-tooltip={dark ? "Light theme" : "Dark theme"}>
+            {dark ? <Sun size={21} /> : <Moon size={21} />}
+          </button>
+          <button className="rail-button" aria-label="Settings & integrations" aria-current={view === "Settings" ? "true" : undefined} data-tooltip="Settings" onClick={() => nav("Settings")}>
+            <Settings size={21} aria-hidden="true" />
           </button>
         </div>
-        <div className="workspace">
-          <span className="workspace-icon">NW</span>
-          <div>
-            <strong>Your workspace</strong>
-            <small>Private network</small>
+      </nav>
+
+      <div className="workspace-card">
+        <aside
+          id="workspace-sidebar"
+          className={`sidebar${sidebarPreview ? " sidebar-preview" : ""}`}
+          aria-label="Workspace navigation"
+          inert={sidebarCollapsed && !sidebarPreview}
+          onPointerEnter={cancelPreviewClose}
+          onPointerLeave={schedulePreviewClose}
+        >
+          <div className="sidebar-heading">
+            <strong>{sidebarSection}</strong>
+            <button className="icon-button" onClick={() => selectSidebarView("Ask your network")} aria-label="Search your network" title="Search your network">
+              <Search size={15} />
+            </button>
           </div>
-          <ChevronDown size={15} />
-        </div>
-        <div className="nav-label">WORKSPACE</div>
-        <nav>
-          <button className={`nav-item nav-section ${inLinks(view) ? "section-selected" : ""}`} aria-label="Links section" aria-expanded={networkExpanded} title="Links" onClick={() => setNetworkExpanded(!networkExpanded)}><Waypoints size={18} /><span>Links</span><ChevronDown size={14} className={networkExpanded ? "" : "collapsed"} /></button>
-          {networkExpanded && <div className="network-subnav">{(Object.entries(NAV) as Array<[ViewName, typeof Network]>).filter(([name]) => inLinks(name)).map(([name, Icon]) => (
-            <button key={name} aria-label={name} title={name} aria-current={view === name ? "page" : undefined} className={`nav-item ${view === name ? "active" : ""}`} onClick={() => nav(name)}>
-              <Icon size={18} />
-              <span>{name}</span>
-              {name === "Entity review" && g.reviews.length > 0 && <b>{g.reviews.length}</b>}
-            </button>
-          ))}</div>}
-          <button className={`nav-item nav-section ${LOOP_VIEWS.includes(view) ? "section-selected" : ""}`} aria-label="Loops section" aria-expanded={loopsExpanded} title="Loops" onClick={() => setLoopsExpanded(!loopsExpanded)}><LoopIcon size={18} /><span>Loops</span><ChevronDown size={14} className={loopsExpanded ? "" : "collapsed"} /></button>
-          {loopsExpanded && <div className="network-subnav">{LOOP_VIEWS.map(name => { const Icon = NAV[name]; return (
-            <button key={name} aria-label={name === "Tasks" ? "Loops" : name} title={name === "Tasks" ? "Loops" : name} aria-current={view === name ? "page" : undefined} className={`nav-item ${view === name ? "active" : ""}`} onClick={() => { nav(name); setNetworkExpanded(false); }}>
-              <Icon size={18} />
-              <span>{name === "Tasks" ? "Loops" : name}</span>
-            </button>
-          ); })}</div>}
-        </nav>
-        <div className="sidebar-bottom">
-          {!LOOP_VIEWS.includes(view) && <div className="source-card">
-            <AudioLines className="granola-mark" size={25} />
-            <strong>
-              Your conversations,
-              <br />
-              connected.
-            </strong>
-            <p>Turn meeting context into your next warm introduction.</p>
-            <button onClick={() => (connected ? nav("Meetings") : setModal("settings"))}>
-              {connected ? "Browse Granola" : "Connect Granola"}
-              <ArrowUpRight size={15} />
-            </button>
-          </div>}
-          <button className={`nav-item ${view === "Settings" ? "active" : ""}`} aria-current={view === "Settings" ? "page" : undefined} title="Settings & integrations" onClick={() => nav("Settings")}>
-            <Settings2 size={18} />
-            <span>Settings &amp; integrations</span>
-          </button>
-          <div className="profile">
-            <span className="avatar you">Y</span>
-            <div>
-              <strong>Your workspace</strong>
-              <small>Personal account</small>
+          <nav className="sidebar-views" aria-label={`${sidebarSection} views`}>
+            {(sidebarSection === "Loops" ? LOOP_VIEWS : LINK_VIEWS).map(name => {
+              const label = name === "Tasks" ? "Loops" : name;
+              const Icon = NAV[name];
+              return (
+                <button key={name} className="nav-item" aria-current={view === name ? "page" : undefined} onClick={() => selectSidebarView(name)}>
+                  <Icon size={16} aria-hidden="true" />
+                  <span>{label}</span>
+                  {name === "Entity review" && g.reviews.length > 0 && <b>{g.reviews.length}</b>}
+                </button>
+              );
+            })}
+          </nav>
+          {sidebarSection === "Links" && (
+            <div className="sidebar-bottom">
+              <button className="nav-item source-link" onClick={() => {
+                if (connected) selectSidebarView("Meetings");
+                else {
+                  cancelPreviewClose();
+                  setSidebarPreview(null);
+                  setModal("settings");
+                }
+              }}>
+                <AudioLines size={16} />
+                <span>{connected ? "Browse Granola" : "Connect Granola"}</span>
+                <ArrowUpRight size={13} />
+              </button>
             </div>
-            <button className="icon-button" onClick={theme} aria-label="Switch color theme">
-              {dark ? <Sun size={18} /> : <Moon size={18} />}
-            </button>
-          </div>
-        </div>
-      </aside>
+          )}
+        </aside>
 
-      <div className="main-shell">
-        <header className="topbar">
-          <div className="breadcrumb">
-            {LOOP_VIEWS.includes(view) ? <LoopIcon size={17} /> : <Network size={17} />}
-            <span>Workspace</span>
-            <span>/</span>
-            <strong>{view === "Network" ? "Network / Map" : LOOP_VIEWS.includes(view) ? `Loops / ${view}` : view === "Settings" ? view : `Network / ${view}`}</strong>
-          </div>
-          <div className="top-actions">
-            <i className="green-dot" />
-            Private workspace
-            <button className="icon-button" aria-label="Help" onClick={() => setModal("settings")}>
-              <CircleHelp size={18} />
-            </button>
-          </div>
-        </header>
-
+        <div className="main-shell">
         <main className={view === "Network" ? "network-page" : view === "Tasks" ? "loops-page" : view === "Plans" ? "plans-page" : "standalone-page"}>
           <div hidden={view !== "Tasks"}><LoopsBoard entities={g.entities} refreshPeople={load} /></div>
           <div hidden={view !== "Plans"}><PlansBoard entities={g.entities} onOpenEntity={id => { nav("Network"); setSelected(id); setDetailOpen(true); }} /></div>
@@ -1196,6 +1280,7 @@ export default function Home() {
             <span>network waze</span>
           </footer>
         </main>
+      </div>
       </div>
 
       <Dialog

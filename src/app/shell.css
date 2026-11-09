@@ -1,0 +1,366 @@
+/* The rail sits outside the card, so the card casts one continuous shadow. */
+:root {
+  --primary: #1a1c1f;
+  --foreground: #303133;
+  --border: #ededed;
+  --subtle: #f5f5f5;
+  --muted: #77797b;
+  --sidebar: #fdfdfd;
+  --red-soft: #f0f1f1;
+  --dot: #e9e9e9;
+  --edge: #d9d9d9;
+  --app-frame: #f9f9f9;
+  --card-border: #ebebeb;
+  --card-shadow: 0 3px 14px rgb(0 0 0 / 5.5%);
+  --rail-active: #eceded;
+  --rail-icon: #8b8d8f;
+  --rail-width: 48px;
+  --pane-width: min(368px, 42vw);
+  --card-top: 6px;
+  --card-bottom: 6px;
+}
+
+.dark {
+  --primary: #eeeeef;
+  --foreground: #eeeeef;
+  --background: #202123;
+  --border: #333436;
+  --subtle: #2b2c2e;
+  --muted: #a4a4a7;
+  --sidebar: #242527;
+  --red-soft: #353638;
+  --dot: #353638;
+  --edge: #454649;
+  --app-frame: #191a1c;
+  --card-border: #333436;
+  --card-shadow: 0 3px 14px rgb(0 0 0 / 30%);
+  --rail-active: #303133;
+  --rail-icon: #a4a4a7;
+}
+
+body {
+  background: var(--app-frame);
+}
+
+.app-shell {
+  display: block;
+  min-height: 100dvh;
+}
+
+.app-logo img {
+  width: 23px;
+  height: 23px;
+  object-fit: cover;
+  object-position: top;
+  border-radius: 5px;
+}
+
+.app-logo > :is(img, .sidebar-toggle-icon) { grid-area: 1 / 1; }
+.sidebar-toggle-icon { visibility: hidden; }
+
+.app-rail:hover .app-logo img,
+.app-logo:focus-visible img { visibility: hidden; }
+
+.app-rail:hover .sidebar-toggle-icon,
+.app-logo:focus-visible .sidebar-toggle-icon { visibility: visible; }
+
+.app-rail {
+  position: fixed;
+  left: 0;
+  top: var(--card-top);
+  bottom: 0;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: var(--rail-width);
+  padding: 6px 0 15px;
+}
+
+.rail-button {
+  position: relative;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 0;
+  border-radius: 10px;
+  color: var(--rail-icon);
+  background: transparent;
+}
+
+.rail-button svg { stroke-width: 1.7; }
+
+.rail-button:is(:hover, :focus-visible, [aria-current="true"]) {
+  color: var(--primary);
+  background: var(--rail-active);
+  filter: none;
+}
+
+.rail-button[data-tooltip]::after {
+  content: attr(data-tooltip);
+}
+
+.rail-button[data-tooltip]::after,
+.sidebar-toggle-tooltip {
+  position: absolute;
+  z-index: 1;
+  top: 50%;
+  left: calc(100% + 2px);
+  transform: translateY(-50%);
+  padding: 0 12px;
+  border-radius: 11px;
+  color: #fff;
+  background: #1a1c1f;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 17%), 0 1px 3px rgb(0 0 0 / 10%);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 28px;
+  white-space: nowrap;
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.rail-button[data-tooltip]:is(:hover, :focus-visible)::after,
+.app-logo:is(:hover, :focus-visible) .sidebar-toggle-tooltip {
+  visibility: visible;
+  opacity: 1;
+}
+
+.sidebar-collapsed .rail-button[data-tooltip]:is(:hover, :focus-visible)::after {
+  transition: opacity 100ms 180ms;
+}
+
+.sidebar-toggle-tooltip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px 4px 12px;
+  line-height: 20px;
+}
+
+.sidebar-toggle-tooltip kbd {
+  padding: 0 6px;
+  border-radius: 7px;
+  background: rgb(255 255 255 / 23%);
+  font: inherit;
+}
+
+.rail-bottom {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 11px;
+  margin-top: auto;
+}
+
+.workspace-card {
+  position: fixed;
+  inset: var(--card-top) 4px var(--card-bottom) var(--rail-width);
+  display: grid;
+  grid-template-columns: var(--pane-width) minmax(0, 1fr);
+  border: 1px solid var(--card-border);
+  border-radius: 13px;
+  background: var(--background);
+  box-shadow: var(--card-shadow);
+  overflow: clip;
+  transition: grid-template-columns 180ms ease;
+}
+
+.app-shell.sidebar-collapsed .workspace-card {
+  grid-template-columns: 0px minmax(0, 1fr);
+}
+
+.app-shell .workspace-card .sidebar {
+  position: static;
+  display: flex;
+  flex-direction: column;
+  width: auto;
+  min-width: 0;
+  height: auto;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-right: 1px solid var(--border);
+  background: var(--sidebar);
+  overflow: auto;
+  scrollbar-width: thin;
+}
+
+.app-shell.sidebar-collapsed .sidebar {
+  visibility: hidden;
+}
+
+.app-shell .workspace-card .sidebar.sidebar-preview {
+  position: absolute;
+  inset: 3px auto 3px 3px;
+  z-index: 25;
+  width: var(--pane-width);
+  visibility: visible;
+  border: 1px solid var(--card-border);
+  border-radius: 9px;
+  box-shadow: var(--card-shadow);
+}
+
+.sidebar-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 50px;
+  padding: 0 13px 0 15px;
+  gap: 12px;
+}
+
+.sidebar-heading strong {
+  font-family: "OpenAI Sans", var(--font-app-ui);
+  font-size: 19px;
+  font-weight: 600;
+  line-height: 24px;
+}
+
+.sidebar-views { padding: 0 7px; }
+
+.app-shell .sidebar .nav-item {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  min-height: 33px;
+  margin: 0 0 1px;
+  padding: 6px 8px;
+  border-radius: 10px;
+  color: var(--foreground);
+  font-size: 15px;
+  font-weight: 400;
+  line-height: 21px;
+}
+
+.app-shell .sidebar .nav-item span {
+  display: inline;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-shell .sidebar .nav-item[aria-current="page"],
+.app-shell .sidebar .nav-item:hover {
+  background: var(--red-soft);
+  filter: none;
+}
+
+.app-shell .sidebar .nav-item b {
+  display: block;
+  background: var(--border);
+  font-size: 10px;
+  font-weight: 500;
+}
+
+.app-shell .sidebar-bottom {
+  display: block;
+  margin-top: auto;
+  padding: 16px 7px 7px;
+}
+
+.source-link > svg:last-child { margin-left: auto; }
+
+.app-shell .workspace-card .main-shell {
+  grid-column: 2;
+  position: relative;
+  /* Keep sticky toolbars and canvas overlays beneath the sidebar. */
+  isolation: isolate;
+  width: auto;
+  min-width: 0;
+  min-height: 0;
+  margin: 0;
+  overflow: auto;
+  scrollbar-width: thin;
+  transition: none;
+}
+
+.app-shell main.standalone-page {
+  max-width: 910px;
+  padding: 27px 34px 36px;
+}
+
+.app-shell .network-page,
+.app-shell .plans-page {
+  height: calc(100dvh - var(--card-top) - var(--card-bottom) - 2px);
+  min-height: 320px;
+}
+
+.app-shell .loops-page {
+  min-height: calc(100dvh - var(--card-top) - var(--card-bottom) - 2px);
+  background: var(--background);
+}
+
+.app-shell .plans-canvas { background-color: var(--background); }
+.app-shell .network-page .graph-filters { width: min(640px, calc(100% - 48px)); }
+
+h1 {
+  font-size: 26px;
+  letter-spacing: -.6px;
+  font-weight: 550;
+}
+
+.eyebrow { color: var(--muted); letter-spacing: .8px; }
+
+.primary-button {
+  border-radius: 999px !important;
+  box-shadow: none;
+  color: var(--background);
+}
+
+.content-card, .stats, .network-panel, .detail-panel {
+  border-radius: 16px;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 4%), 0 3px 9px rgb(0 0 0 / 2%);
+}
+
+.ai-settings .content-card { padding: 26px; }
+.provider-option, .model-option, .search-box, .filter-select { border-radius: 12px; }
+
+.network-composer {
+  border-color: var(--border);
+  box-shadow: 0 2px 6px rgb(0 0 0 / 4%), 0 12px 48px rgb(0 0 0 / 5%);
+}
+
+.avatar.you, .avatar.big { border-color: var(--border); }
+
+@media (max-width: 700px) {
+  :root {
+    --pane-width: min(368px, calc(100vw - 65px));
+    --rail-width: 44px;
+  }
+
+  .app-shell .workspace-card {
+    grid-template-columns: minmax(0, 1fr);
+    transition: none;
+  }
+
+  .app-shell.sidebar-collapsed .workspace-card { grid-template-columns: minmax(0, 1fr); }
+  .app-shell .workspace-card .main-shell { grid-column: 1; }
+
+  .app-shell .workspace-card .sidebar {
+    position: absolute;
+    inset: 0 auto 0 0;
+    z-index: 12;
+    width: var(--pane-width);
+    box-shadow: var(--card-shadow);
+  }
+
+  .app-shell main.standalone-page { padding: 20px 16px; }
+  .app-shell .loops-workspace { padding: 24px 16px; }
+  .app-shell .network-page .graph-filters { width: calc(100% - 24px); }
+  .app-shell .ai-settings .content-card { padding: 20px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .workspace-card,
+  .sidebar-collapsed .rail-button[data-tooltip]:is(:hover, :focus-visible)::after {
+    transition: none;
+  }
+}
