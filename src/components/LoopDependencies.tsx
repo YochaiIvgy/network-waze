@@ -1,8 +1,9 @@
 "use client";
 
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode, type PointerEvent as ReactPointerEvent } from "react";
-import { ArrowRight, Check, GitBranch, LockKeyhole, Plus, Search, Unlink, X } from "lucide-react";
+import { ArrowRight, Check, ChevronDown, GitBranch, LockKeyhole, Plus, Search, Unlink, X } from "lucide-react";
 import { connectLoops, dependencyBlockers, downstreamLoops, type LoopItem, type LoopPath } from "@/lib/loops";
+import { LoopMenu } from "./LoopMenu";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "./ui/dialog";
 
 type DependencyContextValue = {
@@ -182,9 +183,17 @@ export function LoopDependencies({ paths, onChange, children }: { paths: LoopPat
   const invalid = drag?.target ? connectLoops(paths, drag.source, drag.target).error : undefined;
   const toolbar = <>
       <div className="loops-dependency-toolbar">
-        <div className="connection-display-control" role="group" aria-label="Connection line visibility"><GitBranch size={14} /><span>Lines</span>{(["off", "hover", "all"] as const).map(mode => <button key={mode} aria-pressed={visibility === mode} onClick={() => setVisibility(mode)}>{mode === "off" ? "Off" : mode === "hover" ? "On hover" : "All"}</button>)}</div>
-        {!!blocked.length && <span className="connection-blocked-total"><LockKeyhole size={11} />{blocked.length} blocked</span>}
-        {!!bottlenecks.length && <details><summary>Bottlenecks · {bottlenecks.length}</summary><div>{bottlenecks.map(({ item, count }) => <p key={item.id}><strong>{item.title}</strong><span>Holds up {count} {count === 1 ? "task" : "tasks"}</span></p>)}</div></details>}
+        <LoopMenu className="loops-control-menu loops-connections-menu">
+          <summary><GitBranch size={14} /> Lines <ChevronDown size={13} /></summary>
+          <div>
+            <span>Connection lines</span>
+            {(["off", "hover", "all"] as const).map(mode => <button key={mode} aria-pressed={visibility === mode} onClick={event => { setVisibility(mode); event.currentTarget.closest("details")?.removeAttribute("open"); }}>
+              {mode === "off" ? "Hidden" : mode === "hover" ? "On hover" : "Always visible"}
+            </button>)}
+            {!!blocked.length && <span className="connection-blocked-total"><LockKeyhole size={11} />{blocked.length} blocked</span>}
+            {!!bottlenecks.length && <div className="loops-bottlenecks">{bottlenecks.map(({ item, count }) => <p key={item.id}><strong>{item.title}</strong><small>Holds up {count} {count === 1 ? "loop" : "loops"}</small></p>)}</div>}
+          </div>
+        </LoopMenu>
         {notice && <span role="status">{notice}<button aria-label="Dismiss connection update" onClick={() => setNotice("")}><X size={12} /></button></span>}
       </div>
   </>;
@@ -339,6 +348,19 @@ export function LoopDependencyControls({ item }: { item: LoopItem }) {
   const blocked = !item.resolved && dependencyBlockers(item, context.items).length > 0;
   if (!total) return null;
   return <button className={`loop-chain-count loop-chain-inspect ${blocked ? "is-blocked" : ""}`} title="Explore chain" aria-label={`Explore chain for ${item.title}, ${total} connections`} onClick={() => context.inspect(item.id)}>{total}</button>;
+}
+
+export function LoopInspectorConnections({ item, blockers }: { item: LoopItem; blockers: LoopItem[] }) {
+  const context = useContext(DependencyContext);
+  if (!context) return null;
+  const outgoing = context.items.filter(other => other.dependsOn.includes(item.id)).length;
+  return <>
+    {!item.resolved && blockers.length > 0 && <p className="loop-inspector-blocked"><LockKeyhole size={13} /> Waiting for {blockers.map(loop => loop.title).join(", ")}</p>}
+    <div className="loop-inspector-connections">
+      {(item.dependsOn.length > 0 || outgoing > 0) && <button type="button" onClick={() => context.inspect(item.id)}><GitBranch size={14} /> View chain</button>}
+      <button type="button" onClick={() => context.choose(item.id)}><Plus size={14} /> Connect a loop</button>
+    </div>
+  </>;
 }
 
 export function LoopConnectionHandles({ item }: { item: LoopItem }) {
